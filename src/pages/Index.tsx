@@ -1,13 +1,135 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useState, useEffect } from 'react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import DataPanel from '@/components/dashboard/DataPanel';
+import { useConfig } from '@/context/ConfigContext';
+import { createApi } from '@/utils/api';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const Index = () => {
+  const navigate = useNavigate();
+  const config = useConfig();
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    contents: 0,
+    episodes: 0,
+    banners: 0,
+    categories: 0,
+    users: 0,
+    sessions: 0,
+    platforms: 0,
+  });
+
+  const fetchStats = async () => {
+    if (!config.apiToken) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const api = createApi({
+      apiToken: config.apiToken,
+      baseUrl: config.baseUrl,
+      tableIds: config.tableIds,
+    });
+
+    try {
+      const statsPromises = Object.keys(stats).map(async (tableType) => {
+        if (!config.tableIds[tableType as keyof typeof config.tableIds]) {
+          return { tableType, count: 0 };
+        }
+
+        try {
+          const response = await api.getTableRows(
+            tableType as keyof typeof stats,
+            1,
+            1
+          );
+          return { tableType, count: response.count || 0 };
+        } catch (error) {
+          console.error(`Error fetching ${tableType} stats:`, error);
+          return { tableType, count: 0 };
+        }
+      });
+
+      const results = await Promise.all(statsPromises);
+      
+      const newStats = { ...stats };
+      results.forEach((result) => {
+        newStats[result.tableType as keyof typeof stats] = result.count;
+      });
+
+      setStats(newStats);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      toast.error('Erro ao buscar estatísticas');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, [config.apiToken, config.baseUrl, config.tableIds]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <DashboardLayout>
+      <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight mb-1">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Visão geral dos dados da sua aplicação
+            </p>
+          </div>
+
+          <Button 
+            onClick={() => navigate('/settings')}
+            variant="outline"
+            className="gap-2"
+          >
+            <Settings size={16} />
+            <span>Configurações</span>
+          </Button>
+        </div>
+
+        {!config.apiToken ? (
+          <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 animate-fade-in">
+            <CardHeader>
+              <CardTitle>Configuração necessária</CardTitle>
+              <CardDescription>
+                Configure o token da API Baserow para começar a usar o painel de administração
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => navigate('/settings')}
+                className="gap-2"
+              >
+                <Settings size={16} />
+                <span>Ir para Configurações</span>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-10">
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+                  <span className="mt-2 text-sm text-muted-foreground">Carregando estatísticas...</span>
+                </div>
+              </div>
+            )}
+            <DataPanel stats={stats} />
+          </div>
+        )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
