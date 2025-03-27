@@ -6,6 +6,7 @@ import { useConfig } from '@/context/ConfigContext';
 import { createApi } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -223,33 +224,35 @@ const Sessions = () => {
               {currentSession ? 'Editar Sessão' : 'Adicionar Sessão'}
             </DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="categoria">Categoria</Label>
-              <Input
-                id="categoria"
-                value={formData.Categoria}
-                onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
-                placeholder="Nome da categoria"
-              />
+          <ScrollArea className="max-h-[60vh]">
+            <div className="grid gap-4 py-4 pr-4">
+              <div className="grid gap-2">
+                <Label htmlFor="categoria">Categoria</Label>
+                <Input
+                  id="categoria"
+                  value={formData.Categoria}
+                  onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
+                  placeholder="Nome da categoria"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="tipo">Tipo</Label>
+                <Select
+                  value={formData.Tipo}
+                  onValueChange={(value) => setFormData({ ...formData, Tipo: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Filme">Filme</SelectItem>
+                    <SelectItem value="Serie">Série</SelectItem>
+                    <SelectItem value="TV">TV</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select
-                value={formData.Tipo}
-                onValueChange={(value) => setFormData({ ...formData, Tipo: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Filme">Filme</SelectItem>
-                  <SelectItem value="Serie">Série</SelectItem>
-                  <SelectItem value="TV">TV</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          </ScrollArea>
           <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
             <Button 
               variant="outline" 

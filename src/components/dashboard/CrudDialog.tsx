@@ -31,11 +31,11 @@ const CrudDialog: React.FC<CrudDialogProps> = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`${isMobile ? 'w-[95%] max-h-[90vh] overflow-y-auto p-4' : 'sm:max-w-[500px]'}`}>
+      <DialogContent className={isMobile ? "w-[95%] max-h-[90vh] p-4" : "sm:max-w-[500px]"}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className={`py-4 ${isMobile ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
+        <div className="py-4">
           {children}
         </div>
         <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
