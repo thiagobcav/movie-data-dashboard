@@ -6,6 +6,23 @@ import { useConfig } from '@/context/ConfigContext';
 import { createApi } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Sessions = () => {
   const config = useConfig();
@@ -13,10 +30,17 @@ const Sessions = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [currentSession, setCurrentSession] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    Categoria: '',
+    Tipo: 'Filme'
+  });
   const pageSize = 10;
 
   const columns = [
-    { key: 'Nome', label: 'Nome' },
+    { key: 'Categoria', label: 'Categoria' },
     { 
       key: 'Tipo', 
       label: 'Tipo',
@@ -68,15 +92,84 @@ const Sessions = () => {
   }, [currentPage, config.apiToken, config.baseUrl, config.tableIds.sessions]);
 
   const handleEdit = (row: any) => {
-    toast.info(`Editando: ${row.Nome}`);
+    setCurrentSession(row);
+    setFormData({
+      Categoria: row.Categoria || '',
+      Tipo: row.Tipo || 'Filme'
+    });
+    setIsDialogOpen(true);
   };
 
   const handleDelete = (row: any) => {
-    toast.info(`Excluindo: ${row.Nome}`);
+    setCurrentSession(row);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleAdd = () => {
-    toast.info('Adicionando nova sessão');
+    setCurrentSession(null);
+    setFormData({
+      Categoria: '',
+      Tipo: 'Filme'
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.Categoria) {
+      toast.error('A categoria é obrigatória');
+      return;
+    }
+
+    if (!config.apiToken || !config.tableIds.sessions) {
+      toast.error('Configure o token da API e o ID da tabela');
+      return;
+    }
+
+    try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
+      if (currentSession) {
+        // Update
+        await api.updateRow('sessions', currentSession.id, formData);
+        toast.success('Sessão atualizada com sucesso');
+      } else {
+        // Create
+        await api.createRow('sessions', formData);
+        toast.success('Sessão criada com sucesso');
+      }
+
+      setIsDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error saving session:', error);
+      toast.error('Erro ao salvar a sessão');
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!currentSession || !config.apiToken || !config.tableIds.sessions) {
+      return;
+    }
+
+    try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
+      await api.deleteRow('sessions', currentSession.id);
+      toast.success('Sessão excluída com sucesso');
+      setIsDeleteDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      toast.error('Erro ao excluir a sessão');
+    }
   };
 
   return (
@@ -109,6 +202,76 @@ const Sessions = () => {
           />
         )}
       </div>
+
+      {/* Edit/Add Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {currentSession ? 'Editar Sessão' : 'Adicionar Sessão'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="categoria">Categoria</Label>
+              <Input
+                id="categoria"
+                value={formData.Categoria}
+                onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
+                placeholder="Nome da categoria"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="tipo">Tipo</Label>
+              <Select
+                value={formData.Tipo}
+                onValueChange={(value) => setFormData({ ...formData, Tipo: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Filme">Filme</SelectItem>
+                  <SelectItem value="Serie">Série</SelectItem>
+                  <SelectItem value="TV">TV</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p>
+              Tem certeza que deseja excluir a sessão{" "}
+              <strong>{currentSession?.Categoria}</strong>?
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Esta ação não pode ser desfeita.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

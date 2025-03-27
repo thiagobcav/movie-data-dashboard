@@ -2,9 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
+import CrudDialog from '@/components/dashboard/CrudDialog';
+import DeleteDialog from '@/components/dashboard/DeleteDialog';
 import { useConfig } from '@/context/ConfigContext';
 import { createApi } from '@/utils/api';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const Platforms = () => {
   const config = useConfig();
@@ -12,6 +16,14 @@ const Platforms = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentPlatform, setCurrentPlatform] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    Categoria: '',
+    Imagem: ''
+  });
   const pageSize = 10;
 
   const columns = [
@@ -64,15 +76,92 @@ const Platforms = () => {
   }, [currentPage, config.apiToken, config.baseUrl, config.tableIds.platforms]);
 
   const handleEdit = (row: any) => {
-    toast.info(`Editando: ${row.Categoria}`);
+    setCurrentPlatform(row);
+    setFormData({
+      Categoria: row.Categoria || '',
+      Imagem: row.Imagem || ''
+    });
+    setIsDialogOpen(true);
   };
 
   const handleDelete = (row: any) => {
-    toast.info(`Excluindo: ${row.Categoria}`);
+    setCurrentPlatform(row);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleAdd = () => {
-    toast.info('Adicionando nova plataforma');
+    setCurrentPlatform(null);
+    setFormData({
+      Categoria: '',
+      Imagem: ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.Categoria) {
+      toast.error('A categoria é obrigatória');
+      return;
+    }
+
+    if (!config.apiToken || !config.tableIds.platforms) {
+      toast.error('Configure o token da API e o ID da tabela');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
+      if (currentPlatform) {
+        // Update
+        await api.updateRow('platforms', currentPlatform.id, formData);
+        toast.success('Plataforma atualizada com sucesso');
+      } else {
+        // Create
+        await api.createRow('platforms', formData);
+        toast.success('Plataforma criada com sucesso');
+      }
+
+      setIsDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error saving platform:', error);
+      toast.error('Erro ao salvar a plataforma');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!currentPlatform || !config.apiToken || !config.tableIds.platforms) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
+      await api.deleteRow('platforms', currentPlatform.id);
+      toast.success('Plataforma excluída com sucesso');
+      setIsDeleteDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting platform:', error);
+      toast.error('Erro ao excluir a plataforma');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -105,6 +194,59 @@ const Platforms = () => {
           />
         )}
       </div>
+
+      {/* Edit/Add Dialog */}
+      <CrudDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        title={currentPlatform ? 'Editar Plataforma' : 'Adicionar Plataforma'}
+        onSave={handleSave}
+        isLoading={isSubmitting}
+      >
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="categoria">Categoria</Label>
+            <Input
+              id="categoria"
+              value={formData.Categoria}
+              onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
+              placeholder="Nome da plataforma"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="imagem">URL da Imagem</Label>
+            <Input
+              id="imagem"
+              value={formData.Imagem}
+              onChange={(e) => setFormData({ ...formData, Imagem: e.target.value })}
+              placeholder="https://exemplo.com/imagem.jpg"
+            />
+          </div>
+          {formData.Imagem && (
+            <div className="mt-2">
+              <p className="text-sm text-muted-foreground mb-2">Pré-visualização:</p>
+              <div className="w-20 h-20 rounded overflow-hidden bg-gray-100">
+                <img 
+                  src={formData.Imagem} 
+                  alt="Pré-visualização" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => (e.currentTarget.src = '/placeholder.svg')}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </CrudDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        message="Tem certeza que deseja excluir a plataforma"
+        itemName={currentPlatform?.Categoria}
+        onConfirm={handleConfirmDelete}
+        isLoading={isSubmitting}
+      />
     </DashboardLayout>
   );
 };
