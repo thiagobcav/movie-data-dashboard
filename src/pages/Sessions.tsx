@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -23,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useIsMobile } from '@/hooks/use-mobile';
+import CrudDialog from '@/components/dashboard/CrudDialog';
 
 const Sessions = () => {
   const config = useConfig();
@@ -215,7 +217,7 @@ const Sessions = () => {
 
       {/* Edit/Add Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className={`${isMobile ? 'w-[95%] p-4' : 'sm:max-w-[425px]'}">
+        <DialogContent className={isMobile ? "w-[95%] p-4" : "sm:max-w-[425px]"}>
           <DialogHeader>
             <DialogTitle>
               {currentSession ? 'Editar Sessão' : 'Adicionar Sessão'}
@@ -275,7 +277,7 @@ const Sessions = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className={`${isMobile ? 'w-[95%] p-4' : 'sm:max-w-[425px]'}">
+        <DialogContent className={isMobile ? "w-[95%] p-4" : "sm:max-w-[425px]"}>
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
           </DialogHeader>
