@@ -8,12 +8,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DeleteDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  title?: string;
-  message: string | React.ReactNode;
+  message: string;
   itemName?: string;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -22,38 +22,42 @@ interface DeleteDialogProps {
 const DeleteDialog: React.FC<DeleteDialogProps> = ({
   isOpen,
   onClose,
-  title = "Confirmar Exclusão",
   message,
   itemName,
   onConfirm,
   isLoading = false,
 }) => {
+  const isMobile = useIsMobile();
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className={`${isMobile ? 'w-[95%] p-4' : 'sm:max-w-[425px]'}`}>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>Confirmar Exclusão</DialogTitle>
         </DialogHeader>
         <div className="py-4">
-          {typeof message === 'string' ? (
-            <p>
-              {message} {itemName && <strong>{itemName}</strong>}?
-            </p>
-          ) : (
-            message
-          )}
+          <p>
+            {message}{" "}
+            <strong>{itemName}</strong>?
+          </p>
           <p className="text-sm text-muted-foreground mt-2">
             Esta ação não pode ser desfeita.
           </p>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+        <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
+          <Button 
+            variant="outline" 
+            onClick={onClose} 
+            disabled={isLoading}
+            className={isMobile ? 'w-full' : ''}
+          >
             Cancelar
           </Button>
           <Button 
             variant="destructive" 
-            onClick={onConfirm}
+            onClick={onConfirm} 
             disabled={isLoading}
+            className={isMobile ? 'w-full' : ''}
           >
             {isLoading ? (
               <>

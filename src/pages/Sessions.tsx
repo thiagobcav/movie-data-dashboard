@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -23,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Sessions = () => {
   const config = useConfig();
@@ -33,11 +33,13 @@ const Sessions = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentSession, setCurrentSession] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     Categoria: '',
     Tipo: 'Filme'
   });
   const pageSize = 10;
+  const isMobile = useIsMobile();
 
   const columns = [
     { key: 'Categoria', label: 'Categoria' },
@@ -125,6 +127,8 @@ const Sessions = () => {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
       const api = createApi({
         apiToken: config.apiToken,
@@ -147,6 +151,8 @@ const Sessions = () => {
     } catch (error) {
       console.error('Error saving session:', error);
       toast.error('Erro ao salvar a sessão');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -154,6 +160,8 @@ const Sessions = () => {
     if (!currentSession || !config.apiToken || !config.tableIds.sessions) {
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       const api = createApi({
@@ -169,6 +177,8 @@ const Sessions = () => {
     } catch (error) {
       console.error('Error deleting session:', error);
       toast.error('Erro ao excluir a sessão');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -205,7 +215,7 @@ const Sessions = () => {
 
       {/* Edit/Add Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className={`${isMobile ? 'w-[95%] p-4' : 'sm:max-w-[425px]'}">
           <DialogHeader>
             <DialogTitle>
               {currentSession ? 'Editar Sessão' : 'Adicionar Sessão'}
@@ -238,18 +248,34 @@ const Sessions = () => {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+          <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDialogOpen(false)} 
+              disabled={isSubmitting}
+              className={isMobile ? 'w-full' : ''}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleSave}>Salvar</Button>
+            <Button 
+              onClick={handleSave}
+              disabled={isSubmitting}
+              className={isMobile ? 'w-full' : ''}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="mr-2">Salvando</span>
+                  <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></div>
+                </>
+              ) : 'Salvar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className={`${isMobile ? 'w-[95%] p-4' : 'sm:max-w-[425px]'}">
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
           </DialogHeader>
@@ -262,12 +288,27 @@ const Sessions = () => {
               Esta ação não pode ser desfeita.
             </p>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+          <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isSubmitting}
+              className={isMobile ? 'w-full' : ''}
+            >
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>
-              Excluir
+            <Button 
+              variant="destructive" 
+              onClick={handleConfirmDelete}
+              disabled={isSubmitting}
+              className={isMobile ? 'w-full' : ''}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="mr-2">Excluindo</span>
+                  <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></div>
+                </>
+              ) : 'Excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>
