@@ -195,14 +195,18 @@ const Users = () => {
       ? JSON.stringify({ IMEI: '', Dispositivo: '' }) 
       : formData.IMEI;
 
-    // Get today's date for 'Hoje' field
+    // Get today's date for 'Hoje' field in yyyy-MM-dd format
     const today = new Date().toISOString().split('T')[0];
 
+    // Ensure payment date is in the correct format (yyyy-MM-dd)
+    const paymentDate = formData.Pagamento;
+    
     const userData = {
       ...formData,
       IMEI: imeiData,
       Hoje: today,
-      Data: today
+      Data: today,
+      Pagamento: paymentDate // This is already in yyyy-MM-dd format from the date input
     };
 
     setIsSubmitting(true);
@@ -300,7 +304,7 @@ const Users = () => {
         onSave={handleSave}
         isLoading={isSubmitting}
       >
-        <div className="grid gap-4">
+        <div className="grid gap-4 pr-4">
           <div className="grid gap-2">
             <Label htmlFor="nome">Nome</Label>
             <Input

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -12,7 +11,6 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -206,11 +204,9 @@ const Contents = () => {
       });
 
       if (currentContent) {
-        // Update
         await api.updateRow('contents', currentContent.id, formData);
         toast.success('Conteúdo atualizado com sucesso');
       } else {
-        // Create
         await api.createRow('contents', formData);
         toast.success('Conteúdo criado com sucesso');
       }
@@ -283,7 +279,6 @@ const Contents = () => {
         )}
       </div>
 
-      {/* Edit/Add Dialog com ScrollArea */}
       <CrudDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -291,129 +286,126 @@ const Contents = () => {
         onSave={handleSave}
         isLoading={isSubmitting}
       >
-        <ScrollArea className="max-h-[60vh]">
-          <div className="grid gap-4 pr-4">
-            <div className="grid gap-2">
-              <Label htmlFor="nome">Nome</Label>
-              <Input
-                id="nome"
-                value={formData.Nome}
-                onChange={(e) => setFormData({ ...formData, Nome: e.target.value })}
-                placeholder="Nome do conteúdo"
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="capa">URL da Capa</Label>
-              <Input
-                id="capa"
-                value={formData.Capa}
-                onChange={(e) => setFormData({ ...formData, Capa: e.target.value })}
-                placeholder="https://exemplo.com/imagem.jpg"
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="categoria">Categorias</Label>
-              <Input
-                id="categoria"
-                value={formData.Categoria}
-                onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
-                placeholder="Ação, Aventura, Comédia"
-              />
-              <p className="text-xs text-muted-foreground">Separe as categorias por vírgula</p>
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select
-                value={formData.Tipo}
-                onValueChange={(value) => setFormData({ ...formData, Tipo: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Filme">Filme</SelectItem>
-                  <SelectItem value="Serie">Série</SelectItem>
-                  <SelectItem value="TV">TV</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="idioma">Idioma</Label>
-              <Input
-                id="idioma"
-                value={formData.Idioma}
-                onChange={(e) => setFormData({ ...formData, Idioma: e.target.value })}
-                placeholder="Português, Inglês"
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="sinopse">Sinopse</Label>
-              <Textarea
-                id="sinopse"
-                value={formData.Sinopse}
-                onChange={(e) => setFormData({ ...formData, Sinopse: e.target.value })}
-                placeholder="Breve descrição do conteúdo"
-                rows={3}
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="link">Link</Label>
-              <Input
-                id="link"
-                value={formData.Link}
-                onChange={(e) => setFormData({ ...formData, Link: e.target.value })}
-                placeholder="https://exemplo.com/conteudo"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="views">Views</Label>
-                <Input
-                  id="views"
-                  type="number"
-                  value={formData.Views}
-                  onChange={(e) => setFormData({ ...formData, Views: parseInt(e.target.value) || 0 })}
-                  min={0}
-                />
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="temporadas">Temporadas</Label>
-                <Input
-                  id="temporadas"
-                  type="number"
-                  value={formData.Temporadas}
-                  onChange={(e) => setFormData({ ...formData, Temporadas: parseInt(e.target.value) || 0 })}
-                  min={0}
-                />
-              </div>
-            </div>
-            
-            {formData.Capa && (
-              <div className="mt-2">
-                <p className="text-sm text-muted-foreground mb-2">Pré-visualização:</p>
-                <div className="w-20 h-20 rounded overflow-hidden bg-gray-100">
-                  <img 
-                    src={formData.Capa} 
-                    alt="Pré-visualização" 
-                    className="w-full h-full object-cover"
-                    onError={(e) => (e.currentTarget.src = '/placeholder.svg')}
-                  />
-                </div>
-              </div>
-            )}
+        <div className="grid gap-4 pr-4">
+          <div className="grid gap-2">
+            <Label htmlFor="nome">Nome</Label>
+            <Input
+              id="nome"
+              value={formData.Nome}
+              onChange={(e) => setFormData({ ...formData, Nome: e.target.value })}
+              placeholder="Nome do conteúdo"
+            />
           </div>
-        </ScrollArea>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="capa">URL da Capa</Label>
+            <Input
+              id="capa"
+              value={formData.Capa}
+              onChange={(e) => setFormData({ ...formData, Capa: e.target.value })}
+              placeholder="https://exemplo.com/imagem.jpg"
+            />
+          </div>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="categoria">Categorias</Label>
+            <Input
+              id="categoria"
+              value={formData.Categoria}
+              onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
+              placeholder="Ação, Aventura, Comédia"
+            />
+            <p className="text-xs text-muted-foreground">Separe as categorias por vírgula</p>
+          </div>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="tipo">Tipo</Label>
+            <Select
+              value={formData.Tipo}
+              onValueChange={(value) => setFormData({ ...formData, Tipo: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Filme">Filme</SelectItem>
+                <SelectItem value="Serie">Série</SelectItem>
+                <SelectItem value="TV">TV</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="idioma">Idioma</Label>
+            <Input
+              id="idioma"
+              value={formData.Idioma}
+              onChange={(e) => setFormData({ ...formData, Idioma: e.target.value })}
+              placeholder="Português, Inglês"
+            />
+          </div>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="sinopse">Sinopse</Label>
+            <Textarea
+              id="sinopse"
+              value={formData.Sinopse}
+              onChange={(e) => setFormData({ ...formData, Sinopse: e.target.value })}
+              placeholder="Breve descrição do conteúdo"
+              rows={3}
+            />
+          </div>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="link">Link</Label>
+            <Input
+              id="link"
+              value={formData.Link}
+              onChange={(e) => setFormData({ ...formData, Link: e.target.value })}
+              placeholder="https://exemplo.com/conteudo"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="views">Views</Label>
+              <Input
+                id="views"
+                type="number"
+                value={formData.Views}
+                onChange={(e) => setFormData({ ...formData, Views: parseInt(e.target.value) || 0 })}
+                min={0}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="temporadas">Temporadas</Label>
+              <Input
+                id="temporadas"
+                type="number"
+                value={formData.Temporadas}
+                onChange={(e) => setFormData({ ...formData, Temporadas: parseInt(e.target.value) || 0 })}
+                min={0}
+              />
+            </div>
+          </div>
+          
+          {formData.Capa && (
+            <div className="mt-2">
+              <p className="text-sm text-muted-foreground mb-2">Pré-visualização:</p>
+              <div className="w-20 h-20 rounded overflow-hidden bg-gray-100">
+                <img 
+                  src={formData.Capa} 
+                  alt="Pré-visualização" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => (e.currentTarget.src = '/placeholder.svg')}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </CrudDialog>
 
-      {/* Delete Confirmation Dialog */}
       <DeleteDialog
         isOpen={isDeleteDialogOpen}
         onClose={() => setIsDeleteDialogOpen(false)}

@@ -1,20 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
+import CrudDialog from '@/components/dashboard/CrudDialog';
+import DeleteDialog from '@/components/dashboard/DeleteDialog';
 import { useConfig } from '@/context/ConfigContext';
 import { createApi } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -24,8 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useIsMobile } from '@/hooks/use-mobile';
-import CrudDialog from '@/components/dashboard/CrudDialog';
 
 const Sessions = () => {
   const config = useConfig();
@@ -42,7 +32,6 @@ const Sessions = () => {
     Tipo: 'Filme'
   });
   const pageSize = 10;
-  const isMobile = useIsMobile();
 
   const columns = [
     { key: 'Categoria', label: 'Categoria' },
@@ -140,11 +129,9 @@ const Sessions = () => {
       });
 
       if (currentSession) {
-        // Update
         await api.updateRow('sessions', currentSession.id, formData);
         toast.success('Sessão atualizada com sucesso');
       } else {
-        // Create
         await api.createRow('sessions', formData);
         toast.success('Sessão criada com sucesso');
       }
@@ -216,108 +203,50 @@ const Sessions = () => {
         )}
       </div>
 
-      {/* Edit/Add Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className={isMobile ? "w-[95%] p-4" : "sm:max-w-[425px]"}>
-          <DialogHeader>
-            <DialogTitle>
-              {currentSession ? 'Editar Sessão' : 'Adicionar Sessão'}
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="max-h-[60vh]">
-            <div className="grid gap-4 py-4 pr-4">
-              <div className="grid gap-2">
-                <Label htmlFor="categoria">Categoria</Label>
-                <Input
-                  id="categoria"
-                  value={formData.Categoria}
-                  onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
-                  placeholder="Nome da categoria"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="tipo">Tipo</Label>
-                <Select
-                  value={formData.Tipo}
-                  onValueChange={(value) => setFormData({ ...formData, Tipo: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Filme">Filme</SelectItem>
-                    <SelectItem value="Serie">Série</SelectItem>
-                    <SelectItem value="TV">TV</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </ScrollArea>
-          <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDialogOpen(false)} 
-              disabled={isSubmitting}
-              className={isMobile ? 'w-full' : ''}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSave}
-              disabled={isSubmitting}
-              className={isMobile ? 'w-full' : ''}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="mr-2">Salvando</span>
-                  <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></div>
-                </>
-              ) : 'Salvar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className={isMobile ? "w-[95%] p-4" : "sm:max-w-[425px]"}>
-          <DialogHeader>
-            <DialogTitle>Confirmar Exclusão</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p>
-              Tem certeza que deseja excluir a sessão{" "}
-              <strong>{currentSession?.Categoria}</strong>?
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Esta ação não pode ser desfeita.
-            </p>
+      <CrudDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        title={currentSession ? 'Editar Sessão' : 'Adicionar Sessão'}
+        onSave={handleSave}
+        isLoading={isSubmitting}
+      >
+        <div className="grid gap-4 pr-4">
+          <div className="grid gap-2">
+            <Label htmlFor="categoria">Categoria</Label>
+            <Input
+              id="categoria"
+              value={formData.Categoria}
+              onChange={(e) => setFormData({ ...formData, Categoria: e.target.value })}
+              placeholder="Nome da categoria"
+            />
           </div>
-          <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-              disabled={isSubmitting}
-              className={isMobile ? 'w-full' : ''}
+          <div className="grid gap-2">
+            <Label htmlFor="tipo">Tipo</Label>
+            <Select
+              value={formData.Tipo}
+              onValueChange={(value) => setFormData({ ...formData, Tipo: value })}
             >
-              Cancelar
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleConfirmDelete}
-              disabled={isSubmitting}
-              className={isMobile ? 'w-full' : ''}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="mr-2">Excluindo</span>
-                  <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></div>
-                </>
-              ) : 'Excluir'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Filme">Filme</SelectItem>
+                <SelectItem value="Serie">Série</SelectItem>
+                <SelectItem value="TV">TV</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CrudDialog>
+
+      <DeleteDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        message="Tem certeza que deseja excluir a sessão"
+        itemName={currentSession?.Categoria}
+        onConfirm={handleConfirmDelete}
+        isLoading={isSubmitting}
+      />
     </DashboardLayout>
   );
 };

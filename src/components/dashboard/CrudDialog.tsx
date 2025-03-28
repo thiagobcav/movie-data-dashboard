@@ -35,7 +35,7 @@ const CrudDialog: React.FC<CrudDialogProps> = ({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="py-4">
+        <div className="py-4 overflow-y-auto max-h-[60vh]">
           {children}
         </div>
         <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
