@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Key } from 'lucide-react';
 
 const Login = () => {
-  const [uid, setUid] = useState('');
+  const [uuid, setUuid] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ const Login = () => {
     setIsSubmitting(true);
     
     try {
-      await login(uid);
+      await login(uuid);
     } finally {
       setIsSubmitting(false);
     }
@@ -48,12 +48,12 @@ const Login = () => {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="uid">Chave de Assinatura</Label>
+              <Label htmlFor="uuid">Chave de Assinatura</Label>
               <Input
-                id="uid"
+                id="uuid"
                 placeholder="Digite sua chave de assinatura..."
-                value={uid}
-                onChange={(e) => setUid(e.target.value)}
+                value={uuid}
+                onChange={(e) => setUuid(e.target.value)}
                 autoComplete="off"
                 required
               />
