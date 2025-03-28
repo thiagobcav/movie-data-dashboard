@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface CrudDialogProps {
   isOpen: boolean;
@@ -31,13 +32,15 @@ const CrudDialog: React.FC<CrudDialogProps> = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={isMobile ? "w-[95%] max-h-[90vh] p-4" : "sm:max-w-[500px]"}>
+      <DialogContent className={isMobile ? "w-[95%] p-4" : "sm:max-w-[500px]"}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="py-4 overflow-y-auto max-h-[60vh]">
-          {children}
-        </div>
+        <ScrollArea className="h-[60vh] pr-4">
+          <div className="py-4 px-1">
+            {children}
+          </div>
+        </ScrollArea>
         <DialogFooter className={isMobile ? 'flex flex-col space-y-2' : ''}>
           <Button 
             variant="outline" 

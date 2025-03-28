@@ -286,7 +286,7 @@ const Contents = () => {
         onSave={handleSave}
         isLoading={isSubmitting}
       >
-        <div className="grid gap-4 pr-4">
+        <div className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="nome">Nome</Label>
             <Input

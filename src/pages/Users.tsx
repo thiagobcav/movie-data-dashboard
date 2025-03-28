@@ -116,8 +116,15 @@ const Users = () => {
     if (!date) return '';
     
     try {
+      // Ensure the date is in YYYY-MM-DD format
       const d = new Date(date);
-      return d.toISOString().split('T')[0]; // Format as YYYY-MM-DD for input field
+      
+      // Format as YYYY-MM-DD for input field and API
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}`;
     } catch (e) {
       return '';
     }
@@ -199,14 +206,14 @@ const Users = () => {
     const today = new Date().toISOString().split('T')[0];
 
     // Ensure payment date is in the correct format (yyyy-MM-dd)
-    const paymentDate = formData.Pagamento;
+    const paymentDate = formatPaymentDate(formData.Pagamento);
     
     const userData = {
       ...formData,
       IMEI: imeiData,
       Hoje: today,
       Data: today,
-      Pagamento: paymentDate // This is already in yyyy-MM-dd format from the date input
+      Pagamento: paymentDate // This is now in yyyy-MM-dd format
     };
 
     setIsSubmitting(true);
