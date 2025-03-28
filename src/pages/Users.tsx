@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -33,7 +34,7 @@ const Users = () => {
     Pagamento: '',
     Ativo: true,
     Premium: true,
-    UUID: '',
+    UID: '',
     Revendedor: ''
   });
   const pageSize = 10;
@@ -41,7 +42,7 @@ const Users = () => {
   const columns = [
     { key: 'Nome', label: 'Nome' },
     { key: 'Email', label: 'Email' },
-    { key: 'UUID', label: 'Chave' },
+    { key: 'UID', label: 'Chave' },
     { 
       key: 'Ativo', 
       label: 'Status',
@@ -74,8 +75,10 @@ const Users = () => {
       key: 'Restantes', 
       label: 'Dias Restantes',
       render: (value: string, row: any) => {
+        // Calculate remaining days based on payment date and total days
         const remaining = calculateRemainingDays(row.Pagamento, parseInt(row.Dias || '0'));
         
+        // Determine badge color based on remaining days
         let badgeClass = '';
         const days = parseInt(remaining);
         
@@ -133,8 +136,10 @@ const Users = () => {
     if (!date) return '';
     
     try {
+      // Ensure the date is in YYYY-MM-DD format
       const d = new Date(date);
       
+      // Format as YYYY-MM-DD for input field and API
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
@@ -174,9 +179,9 @@ const Users = () => {
       IMEI: row.IMEI || '',
       Dias: row.Dias || 30,
       Pagamento: formatPaymentDate(row.Pagamento),
-      UUID: row.UUID || '',
-      Ativo: row.Ativo !== false,
-      Premium: row.Premium !== false,
+      UID: row.UID || '',
+      Ativo: row.Ativo !== false, // Default to true if not defined
+      Premium: row.Premium !== false, // Default to true if not defined
       Revendedor: row.Revendedor || ''
     });
     setIsDialogOpen(true);
@@ -189,7 +194,7 @@ const Users = () => {
 
   const handleAdd = () => {
     setCurrentUser(null);
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0]; // Today as YYYY-MM-DD
     
     setFormData({
       Nome: '',
@@ -199,7 +204,7 @@ const Users = () => {
       IMEI: '',
       Dias: 30,
       Pagamento: today,
-      UUID: crypto.randomUUID().substring(0, 8),
+      UID: crypto.randomUUID().substring(0, 8), // Generate a random UID
       Ativo: true,
       Premium: true,
       Revendedor: ''
@@ -223,11 +228,15 @@ const Users = () => {
       return;
     }
 
+    // Format IMEI if empty
     const imeiData = !formData.IMEI 
       ? JSON.stringify({ IMEI: '', Dispositivo: '' }) 
       : formData.IMEI;
 
+    // Get today's date for 'Hoje' field in yyyy-MM-dd format
     const today = new Date().toISOString().split('T')[0];
+
+    // Ensure payment date is in the correct format (yyyy-MM-dd)
     const paymentDate = formatPaymentDate(formData.Pagamento);
     
     const userData = {
@@ -235,7 +244,8 @@ const Users = () => {
       IMEI: imeiData,
       Hoje: today,
       Data: today,
-      Pagamento: paymentDate,
+      Pagamento: paymentDate, // This is now in yyyy-MM-dd format
+      // Calculate and save the remaining days
       Restantes: calculateRemainingDays(paymentDate, formData.Dias)
     };
 
@@ -249,9 +259,11 @@ const Users = () => {
       });
 
       if (currentUser) {
+        // Update
         await api.updateRow('users', currentUser.id, userData);
         toast.success('Usuário atualizado com sucesso');
       } else {
+        // Create
         await api.createRow('users', userData);
         toast.success('Usuário criado com sucesso');
       }
@@ -324,6 +336,7 @@ const Users = () => {
         )}
       </div>
 
+      {/* Edit/Add Dialog */}
       <CrudDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -354,11 +367,11 @@ const Users = () => {
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="uuid">Chave (UUID)</Label>
+            <Label htmlFor="uid">Chave (UID)</Label>
             <Input
-              id="uuid"
-              value={formData.UUID}
-              onChange={(e) => setFormData({ ...formData, UUID: e.target.value })}
+              id="uid"
+              value={formData.UID}
+              onChange={(e) => setFormData({ ...formData, UID: e.target.value })}
               placeholder="Chave única de identificação"
             />
             <p className="text-xs text-muted-foreground">Chave usada para login no sistema</p>
@@ -462,6 +475,7 @@ const Users = () => {
         </div>
       </CrudDialog>
 
+      {/* Delete Confirmation Dialog */}
       <DeleteDialog
         isOpen={isDeleteDialogOpen}
         onClose={() => setIsDeleteDialogOpen(false)}

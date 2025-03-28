@@ -9,7 +9,7 @@ interface User {
   id: number;
   Nome: string;
   Email: string;
-  UUID: string;
+  UID: string;
   Ativo: boolean;
   Premium: boolean;
   Servidor: string;
@@ -23,7 +23,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (uuid: string) => Promise<boolean>;
+  login: (uid: string) => Promise<boolean>;
   logout: () => void;
   calculateRemainingDays: (paymentDate: string, totalDays: number) => string;
 }
@@ -75,8 +75,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = async (uuid: string): Promise<boolean> => {
-    if (!uuid.trim()) {
+  const login = async (uid: string): Promise<boolean> => {
+    if (!uid.trim()) {
       toast.error('Por favor, insira uma chave de assinatura');
       return false;
     }
@@ -98,10 +98,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      // Get all users to find the one with matching UUID
+      // Get all users to find the one with matching UID
       const response = await api.getTableRows('users', 1, 100);
       
-      const foundUser = response.results.find((user: any) => user.UUID === uuid);
+      const foundUser = response.results.find((user: any) => user.UID === uid);
       
       if (!foundUser) {
         toast.error('Chave de assinatura inválida');
