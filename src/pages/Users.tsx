@@ -7,13 +7,15 @@ import DeleteDialog from '@/components/dashboard/DeleteDialog';
 import { useConfig } from '@/context/ConfigContext';
 import { createApi } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
-import { formatDate, formatRemainingDays, formatImeiData } from '@/utils/formatters';
+import { formatDate, formatImeiData } from '@/utils/formatters';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/context/AuthContext';
 
 const Users = () => {
   const config = useConfig();
+  const { calculateRemainingDays } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -29,17 +31,35 @@ const Users = () => {
     Logins: 0,
     IMEI: '',
     Dias: 30,
-    Pagamento: ''
+    Pagamento: '',
+    Ativo: true,
+    Premium: true,
+    UID: '',
+    Revendedor: ''
   });
   const pageSize = 10;
 
   const columns = [
     { key: 'Nome', label: 'Nome' },
     { key: 'Email', label: 'Email' },
+    { key: 'UID', label: 'Chave' },
     { 
-      key: 'Logins', 
-      label: 'Logins',
-      render: (value: number) => value || '0'
+      key: 'Ativo', 
+      label: 'Status',
+      render: (value: boolean) => (
+        <Badge variant={value ? "default" : "destructive"}>
+          {value ? 'Ativo' : 'Inativo'}
+        </Badge>
+      )
+    },
+    { 
+      key: 'Premium', 
+      label: 'Premium',
+      render: (value: boolean) => (
+        <Badge variant={value ? "outline" : "secondary"} className={value ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" : ""}>
+          {value ? 'Premium' : 'Padrão'}
+        </Badge>
+      )
     },
     { 
       key: 'Dias', 
@@ -52,11 +72,11 @@ const Users = () => {
       render: (value: string) => formatDate(value)
     },
     { 
-      key: 'Restam', 
+      key: 'Restantes', 
       label: 'Dias Restantes',
       render: (value: string, row: any) => {
         // Calculate remaining days based on payment date and total days
-        const remaining = formatRemainingDays(row.Pagamento, parseInt(row.Dias || '0'));
+        const remaining = calculateRemainingDays(row.Pagamento, parseInt(row.Dias || '0'));
         
         // Determine badge color based on remaining days
         let badgeClass = '';
@@ -137,6 +157,9 @@ const Users = () => {
       <div className="space-y-2">
         <p><strong>Usuário:</strong> {row.Nome}</p>
         <p><strong>Email:</strong> {row.Email}</p>
+        <p><strong>UID:</strong> {row.UID}</p>
+        <p><strong>Status:</strong> {row.Ativo ? 'Ativo' : 'Inativo'}</p>
+        <p><strong>Premium:</strong> {row.Premium ? 'Sim' : 'Não'}</p>
         <p><strong>Dispositivo:</strong> {imeiData.Dispositivo || 'N/A'}</p>
         <p><strong>IMEI:</strong> {imeiData.IMEI || 'N/A'}</p>
       </div>,
@@ -155,7 +178,11 @@ const Users = () => {
       Logins: row.Logins || 0,
       IMEI: row.IMEI || '',
       Dias: row.Dias || 30,
-      Pagamento: formatPaymentDate(row.Pagamento)
+      Pagamento: formatPaymentDate(row.Pagamento),
+      UID: row.UID || '',
+      Ativo: row.Ativo !== false, // Default to true if not defined
+      Premium: row.Premium !== false, // Default to true if not defined
+      Revendedor: row.Revendedor || ''
     });
     setIsDialogOpen(true);
   };
@@ -176,7 +203,11 @@ const Users = () => {
       Logins: 0,
       IMEI: '',
       Dias: 30,
-      Pagamento: today
+      Pagamento: today,
+      UID: crypto.randomUUID().substring(0, 8), // Generate a random UID
+      Ativo: true,
+      Premium: true,
+      Revendedor: ''
     });
     setIsDialogOpen(true);
   };
@@ -213,7 +244,9 @@ const Users = () => {
       IMEI: imeiData,
       Hoje: today,
       Data: today,
-      Pagamento: paymentDate // This is now in yyyy-MM-dd format
+      Pagamento: paymentDate, // This is now in yyyy-MM-dd format
+      // Calculate and save the remaining days
+      Restantes: calculateRemainingDays(paymentDate, formData.Dias)
     };
 
     setIsSubmitting(true);
@@ -311,7 +344,7 @@ const Users = () => {
         onSave={handleSave}
         isLoading={isSubmitting}
       >
-        <div className="grid gap-4 pr-4">
+        <div className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="nome">Nome</Label>
             <Input
@@ -334,6 +367,17 @@ const Users = () => {
           </div>
           
           <div className="grid gap-2">
+            <Label htmlFor="uid">Chave (UID)</Label>
+            <Input
+              id="uid"
+              value={formData.UID}
+              onChange={(e) => setFormData({ ...formData, UID: e.target.value })}
+              placeholder="Chave única de identificação"
+            />
+            <p className="text-xs text-muted-foreground">Chave usada para login no sistema</p>
+          </div>
+          
+          <div className="grid gap-2">
             <Label htmlFor="senha">Senha</Label>
             <Input
               id="senha"
@@ -342,6 +386,36 @@ const Users = () => {
               onChange={(e) => setFormData({ ...formData, Senha: e.target.value })}
               placeholder="********"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="ativo">Status</Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="ativo"
+                  checked={formData.Ativo}
+                  onChange={(e) => setFormData({ ...formData, Ativo: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="ativo" className="cursor-pointer">Ativo</Label>
+              </div>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="premium">Tipo</Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="premium"
+                  checked={formData.Premium}
+                  onChange={(e) => setFormData({ ...formData, Premium: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="premium" className="cursor-pointer">Premium</Label>
+              </div>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
@@ -375,6 +449,16 @@ const Users = () => {
               type="date"
               value={formData.Pagamento}
               onChange={(e) => setFormData({ ...formData, Pagamento: e.target.value })}
+            />
+          </div>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="revendedor">Revendedor</Label>
+            <Input
+              id="revendedor"
+              value={formData.Revendedor}
+              onChange={(e) => setFormData({ ...formData, Revendedor: e.target.value })}
+              placeholder="Nome do revendedor (opcional)"
             />
           </div>
           

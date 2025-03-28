@@ -20,14 +20,14 @@ interface ConfigContextType {
 }
 
 const defaultConfig = {
-  apiToken: '',
+  apiToken: 'WCLaVXyfPFvPmK7PTtSDUjcYKTZY3bbl',
   baseUrl: 'https://api.baserow.io/api',
   tableIds: {
     contents: '',
     episodes: '',
     banners: '',
     categories: '',
-    users: '',
+    users: '304448',
     sessions: '',
     platforms: '',
   }
@@ -36,17 +36,9 @@ const defaultConfig = {
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [apiToken, setApiToken] = useState<string>('');
-  const [baseUrl, setBaseUrl] = useState<string>('https://api.baserow.io/api');
-  const [tableIds, setTableIds] = useState({
-    contents: '',
-    episodes: '',
-    banners: '',
-    categories: '',
-    users: '',
-    sessions: '',
-    platforms: '',
-  });
+  const [apiToken, setApiToken] = useState<string>(defaultConfig.apiToken);
+  const [baseUrl, setBaseUrl] = useState<string>(defaultConfig.baseUrl);
+  const [tableIds, setTableIds] = useState(defaultConfig.tableIds);
 
   useEffect(() => {
     // Load configuration from localStorage
@@ -55,9 +47,12 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (storedConfig) {
       try {
         const parsedConfig = JSON.parse(storedConfig);
-        setApiToken(parsedConfig.apiToken || '');
-        setBaseUrl(parsedConfig.baseUrl || 'https://api.baserow.io/api');
-        setTableIds(parsedConfig.tableIds || defaultConfig.tableIds);
+        setApiToken(parsedConfig.apiToken || defaultConfig.apiToken);
+        setBaseUrl(parsedConfig.baseUrl || defaultConfig.baseUrl);
+        setTableIds({
+          ...defaultConfig.tableIds,
+          ...parsedConfig.tableIds
+        });
       } catch (error) {
         console.error('Failed to parse stored config:', error);
         toast.error('Erro ao carregar configurações salvas');

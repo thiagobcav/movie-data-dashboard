@@ -14,7 +14,11 @@ import Categories from "./pages/Categories";
 import Users from "./pages/Users";
 import Sessions from "./pages/Sessions";
 import Platforms from "./pages/Platforms";
+import Login from "./pages/Login";
+import Restricted from "./pages/Restricted";
 import { ConfigProvider } from "./context/ConfigContext";
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { useState } from "react";
 
 const App = () => {
@@ -25,24 +29,64 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <ConfigProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/contents" element={<Contents />} />
-              <Route path="/episodes" element={<Episodes />} />
-              <Route path="/banners" element={<Banners />} />
-              <Route path="/categories" element={<Categories />} />
-              <Route path="/users" element={<Users />} />
-              <Route path="/sessions" element={<Sessions />} />
-              <Route path="/platforms" element={<Platforms />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ConfigProvider>
+        <BrowserRouter>
+          <ConfigProvider>
+            <AuthProvider>
+              <Toaster />
+              <Sonner />
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/restricted" element={<Restricted />} />
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <Index />
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings" element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                } />
+                <Route path="/contents" element={
+                  <ProtectedRoute>
+                    <Contents />
+                  </ProtectedRoute>
+                } />
+                <Route path="/episodes" element={
+                  <ProtectedRoute>
+                    <Episodes />
+                  </ProtectedRoute>
+                } />
+                <Route path="/banners" element={
+                  <ProtectedRoute>
+                    <Banners />
+                  </ProtectedRoute>
+                } />
+                <Route path="/categories" element={
+                  <ProtectedRoute>
+                    <Categories />
+                  </ProtectedRoute>
+                } />
+                <Route path="/users" element={
+                  <ProtectedRoute>
+                    <Users />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sessions" element={
+                  <ProtectedRoute>
+                    <Sessions />
+                  </ProtectedRoute>
+                } />
+                <Route path="/platforms" element={
+                  <ProtectedRoute>
+                    <Platforms />
+                  </ProtectedRoute>
+                } />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </ConfigProvider>
+        </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
   );
