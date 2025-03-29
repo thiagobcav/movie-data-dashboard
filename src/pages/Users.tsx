@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -196,25 +197,33 @@ const Users = () => {
       ? JSON.stringify({ IMEI: '', Dispositivo: '' }) 
       : formData.IMEI;
 
+    // Corrigir o formato da data de pagamento para ISO 8601 (YYYY-MM-DD)
     let paymentDate = '';
     if (formData.Pagamento) {
       try {
+        // Certifique-se de que a data está no formato ISO (YYYY-MM-DD)
         const date = new Date(formData.Pagamento);
         if (isNaN(date.getTime())) {
-          throw new Error('Invalid date');
+          throw new Error('Data inválida');
         }
-        paymentDate = date.toISOString().split('T')[0];
+        
+        // Formatar a data no padrão ISO 8601
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        paymentDate = `${year}-${month}-${day}`;
       } catch (e) {
         toast.error('Data de pagamento inválida');
         return;
       }
     }
     
+    // Montar o objeto com os dados a serem enviados
     const userData = {
       ...formData,
       IMEI: imeiData,
-      Hoje: new Date().toISOString().split('T')[0],
-      Data: new Date().toISOString().split('T')[0],
+      Hoje: new Date().toISOString().split('T')[0], // Garante formato YYYY-MM-DD
+      Data: new Date().toISOString().split('T')[0], // Garante formato YYYY-MM-DD
       Pagamento: paymentDate
     };
 
@@ -228,9 +237,13 @@ const Users = () => {
       });
 
       if (currentUser) {
+        // Log completo para depuração
+        console.log('Atualizando usuário:', userData);
         await api.updateRow('users', currentUser.id, userData);
         toast.success('Usuário atualizado com sucesso');
       } else {
+        // Log completo para depuração
+        console.log('Criando usuário:', userData);
         await api.createRow('users', userData);
         toast.success('Usuário criado com sucesso');
       }

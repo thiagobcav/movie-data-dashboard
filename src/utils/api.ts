@@ -54,7 +54,17 @@ export class BaserowApi {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error ${response.status}`);
+        console.error('API error details:', errorData);
+        
+        // Mensagem de erro mais detalhada
+        if (errorData.errors) {
+          const errorDetails = Object.entries(errorData.errors)
+            .map(([field, messages]) => `${field}: ${messages}`)
+            .join(', ');
+          throw new Error(`Erro de validação: ${errorDetails}`);
+        }
+        
+        throw new Error(errorData.error || errorData.detail || `HTTP error ${response.status}`);
       }
 
       return await response.json();
