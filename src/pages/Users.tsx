@@ -11,6 +11,24 @@ import { formatDate, formatRemainingDays, formatImeiData } from '@/utils/formatt
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+
+// Schema de validação para o formulário
+const userFormSchema = z.object({
+  Nome: z.string().min(1, { message: 'Nome é obrigatório' }),
+  Email: z.string().email({ message: 'Email inválido' }),
+  Senha: z.string().min(1, { message: 'Senha é obrigatória' }),
+  Logins: z.number().int().nonnegative(),
+  IMEI: z.string().optional(),
+  Dias: z.number().int().min(1, { message: 'Mínimo de 1 dia' }),
+  Pagamento: z.string().min(1, { message: 'Data de pagamento é obrigatória' })
+});
+
+type UserFormValues = z.infer<typeof userFormSchema>;
 
 const Users = () => {
   const config = useConfig();
@@ -22,17 +40,9 @@ const Users = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    Nome: '',
-    Email: '',
-    Senha: '',
-    Logins: 0,
-    IMEI: '',
-    Dias: 30,
-    Pagamento: ''
-  });
   const pageSize = 10;
 
+  // Colunas da tabela
   const columns = [
     { key: 'Nome', label: 'Nome' },
     { key: 'Email', label: 'Email' },
@@ -79,6 +89,21 @@ const Users = () => {
     },
   ];
 
+  // Configuração do formulário com react-hook-form
+  const form = useForm<UserFormValues>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      Nome: '',
+      Email: '',
+      Senha: '',
+      Logins: 0,
+      IMEI: '',
+      Dias: 30,
+      Pagamento: new Date().toISOString().split('T')[0]
+    }
+  });
+
+  // Buscar dados dos usuários
   const fetchData = async () => {
     if (!config.apiToken || !config.tableIds.users) {
       setIsLoading(false);
@@ -106,26 +131,12 @@ const Users = () => {
     }
   };
 
+  // Atualizar dados quando a página mudar ou as configurações mudarem
   useEffect(() => {
     fetchData();
   }, [currentPage, config.apiToken, config.baseUrl, config.tableIds.users]);
 
-  const formatPaymentDate = (date: string) => {
-    if (!date) return '';
-    
-    try {
-      const d = new Date(date);
-      
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      
-      return `${year}-${month}-${day}`;
-    } catch (e) {
-      return '';
-    }
-  };
-
+  // Visualizar detalhes do usuário
   const handleView = (row: any) => {
     const imeiData = formatImeiData(row.IMEI);
     
@@ -142,30 +153,35 @@ const Users = () => {
     );
   };
 
+  // Editar usuário existente
   const handleEdit = (row: any) => {
     setCurrentUser(row);
-    setFormData({
+    
+    form.reset({
       Nome: row.Nome || '',
       Email: row.Email || '',
       Senha: row.Senha || '',
       Logins: row.Logins || 0,
       IMEI: row.IMEI || '',
       Dias: row.Dias || 30,
-      Pagamento: formatPaymentDate(row.Pagamento)
+      Pagamento: row.Pagamento ? row.Pagamento.split('T')[0] : new Date().toISOString().split('T')[0]
     });
+    
     setIsDialogOpen(true);
   };
 
+  // Confirmar exclusão de usuário
   const handleDelete = (row: any) => {
     setCurrentUser(row);
     setIsDeleteDialogOpen(true);
   };
 
+  // Adicionar novo usuário
   const handleAdd = () => {
     setCurrentUser(null);
     const today = new Date().toISOString().split('T')[0]; // Today as YYYY-MM-DD
     
-    setFormData({
+    form.reset({
       Nome: '',
       Email: '',
       Senha: '',
@@ -174,58 +190,16 @@ const Users = () => {
       Dias: 30,
       Pagamento: today
     });
+    
     setIsDialogOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!formData.Nome) {
-      toast.error('O nome é obrigatório');
-      return;
-    }
-
-    if (!formData.Email) {
-      toast.error('O email é obrigatório');
-      return;
-    }
-
+  // Salvar usuário (criar ou atualizar)
+  const onSubmit = async (data: UserFormValues) => {
     if (!config.apiToken || !config.tableIds.users) {
       toast.error('Configure o token da API e o ID da tabela');
       return;
     }
-
-    const imeiData = !formData.IMEI 
-      ? JSON.stringify({ IMEI: '', Dispositivo: '' }) 
-      : formData.IMEI;
-
-    // Corrigir o formato da data de pagamento para ISO 8601 (YYYY-MM-DD)
-    let paymentDate = '';
-    if (formData.Pagamento) {
-      try {
-        // Certifique-se de que a data está no formato ISO (YYYY-MM-DD)
-        const date = new Date(formData.Pagamento);
-        if (isNaN(date.getTime())) {
-          throw new Error('Data inválida');
-        }
-        
-        // Formatar a data no padrão ISO 8601
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        paymentDate = `${year}-${month}-${day}`;
-      } catch (e) {
-        toast.error('Data de pagamento inválida');
-        return;
-      }
-    }
-    
-    // Montar o objeto com os dados a serem enviados
-    const userData = {
-      ...formData,
-      IMEI: imeiData,
-      Hoje: new Date().toISOString().split('T')[0], // Garante formato YYYY-MM-DD
-      Data: new Date().toISOString().split('T')[0], // Garante formato YYYY-MM-DD
-      Pagamento: paymentDate
-    };
 
     setIsSubmitting(true);
 
@@ -236,13 +210,18 @@ const Users = () => {
         tableIds: config.tableIds,
       });
 
+      // Prepara dados adicionais
+      const userData = {
+        ...data,
+        Hoje: new Date().toISOString().split('T')[0],
+        Data: new Date().toISOString().split('T')[0]
+      };
+
       if (currentUser) {
-        // Log completo para depuração
         console.log('Atualizando usuário:', userData);
         await api.updateRow('users', currentUser.id, userData);
         toast.success('Usuário atualizado com sucesso');
       } else {
-        // Log completo para depuração
         console.log('Criando usuário:', userData);
         await api.createRow('users', userData);
         toast.success('Usuário criado com sucesso');
@@ -258,6 +237,7 @@ const Users = () => {
     }
   };
 
+  // Confirmar e executar exclusão
   const handleConfirmDelete = async () => {
     if (!currentUser || !config.apiToken || !config.tableIds.users) {
       return;
@@ -320,87 +300,128 @@ const Users = () => {
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         title={currentUser ? 'Editar Usuário' : 'Adicionar Usuário'}
-        onSave={handleSave}
+        onSave={form.handleSubmit(onSubmit)}
         isLoading={isSubmitting}
       >
-        <div className="grid gap-4 pr-4">
-          <div className="grid gap-2">
-            <Label htmlFor="nome">Nome</Label>
-            <Input
-              id="nome"
-              value={formData.Nome}
-              onChange={(e) => setFormData({ ...formData, Nome: e.target.value })}
-              placeholder="Nome do usuário"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="Nome"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Nome do usuário" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.Email}
-              onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
-              placeholder="email@exemplo.com"
+            
+            <FormField
+              control={form.control}
+              name="Email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="email" placeholder="email@exemplo.com" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="senha">Senha</Label>
-            <Input
-              id="senha"
-              type="password"
-              value={formData.Senha}
-              onChange={(e) => setFormData({ ...formData, Senha: e.target.value })}
-              placeholder="********"
+            
+            <FormField
+              control={form.control}
+              name="Senha"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Senha</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="password" placeholder="********" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="logins">Logins</Label>
-              <Input
-                id="logins"
-                type="number"
-                value={formData.Logins}
-                onChange={(e) => setFormData({ ...formData, Logins: parseInt(e.target.value) || 0 })}
-                min={0}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="Logins"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Logins</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        {...field} 
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        min={0}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="Dias"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Dias</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        {...field} 
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
+                        min={1} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
             
-            <div className="grid gap-2">
-              <Label htmlFor="dias">Dias</Label>
-              <Input
-                id="dias"
-                type="number"
-                value={formData.Dias}
-                onChange={(e) => setFormData({ ...formData, Dias: parseInt(e.target.value) || 30 })}
-                min={1}
-              />
-            </div>
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="pagamento">Data de Pagamento</Label>
-            <Input
-              id="pagamento"
-              type="date"
-              value={formData.Pagamento}
-              onChange={(e) => setFormData({ ...formData, Pagamento: e.target.value })}
+            <FormField
+              control={form.control}
+              name="Pagamento"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data de Pagamento</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="imei">IMEI (JSON)</Label>
-            <Input
-              id="imei"
-              value={formData.IMEI}
-              onChange={(e) => setFormData({ ...formData, IMEI: e.target.value })}
-              placeholder='{"IMEI": "device-id", "Dispositivo": "Nome do Dispositivo"}'
+            
+            <FormField
+              control={form.control}
+              name="IMEI"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>IMEI</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      {...field} 
+                      placeholder='{"IMEI": "device-id", "Dispositivo": "Nome do Dispositivo"}'
+                      className="min-h-[80px]"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Pode ser informado apenas o código IMEI ou um JSON completo com IMEI e Dispositivo
+                  </p>
+                </FormItem>
+              )}
             />
-            <p className="text-xs text-muted-foreground">Formato JSON contendo IMEI e Dispositivo</p>
-          </div>
-        </div>
+          </form>
+        </Form>
       </CrudDialog>
 
       <DeleteDialog
