@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -55,10 +54,8 @@ const Users = () => {
       key: 'Restam', 
       label: 'Dias Restantes',
       render: (value: string, row: any) => {
-        // Calculate remaining days based on payment date and total days
         const remaining = formatRemainingDays(row.Pagamento, parseInt(row.Dias || '0'));
         
-        // Determine badge color based on remaining days
         let badgeClass = '';
         const days = parseInt(remaining);
         
@@ -116,10 +113,8 @@ const Users = () => {
     if (!date) return '';
     
     try {
-      // Ensure the date is in YYYY-MM-DD format
       const d = new Date(date);
       
-      // Format as YYYY-MM-DD for input field and API
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
@@ -197,23 +192,30 @@ const Users = () => {
       return;
     }
 
-    // Format IMEI if empty
     const imeiData = !formData.IMEI 
       ? JSON.stringify({ IMEI: '', Dispositivo: '' }) 
       : formData.IMEI;
 
-    // Get today's date for 'Hoje' field in yyyy-MM-dd format
-    const today = new Date().toISOString().split('T')[0];
-
-    // Ensure payment date is in the correct format (yyyy-MM-dd)
-    const paymentDate = formatPaymentDate(formData.Pagamento);
+    let paymentDate = '';
+    if (formData.Pagamento) {
+      try {
+        const date = new Date(formData.Pagamento);
+        if (isNaN(date.getTime())) {
+          throw new Error('Invalid date');
+        }
+        paymentDate = date.toISOString().split('T')[0];
+      } catch (e) {
+        toast.error('Data de pagamento inválida');
+        return;
+      }
+    }
     
     const userData = {
       ...formData,
       IMEI: imeiData,
-      Hoje: today,
-      Data: today,
-      Pagamento: paymentDate // This is now in yyyy-MM-dd format
+      Hoje: new Date().toISOString().split('T')[0],
+      Data: new Date().toISOString().split('T')[0],
+      Pagamento: paymentDate
     };
 
     setIsSubmitting(true);
@@ -226,11 +228,9 @@ const Users = () => {
       });
 
       if (currentUser) {
-        // Update
         await api.updateRow('users', currentUser.id, userData);
         toast.success('Usuário atualizado com sucesso');
       } else {
-        // Create
         await api.createRow('users', userData);
         toast.success('Usuário criado com sucesso');
       }
@@ -239,7 +239,7 @@ const Users = () => {
       fetchData();
     } catch (error) {
       console.error('Error saving user:', error);
-      toast.error('Erro ao salvar o usuário');
+      toast.error(`Erro ao salvar o usuário: ${(error as Error).message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -303,7 +303,6 @@ const Users = () => {
         )}
       </div>
 
-      {/* Edit/Add Dialog */}
       <CrudDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -391,7 +390,6 @@ const Users = () => {
         </div>
       </CrudDialog>
 
-      {/* Delete Confirmation Dialog */}
       <DeleteDialog
         isOpen={isDeleteDialogOpen}
         onClose={() => setIsDeleteDialogOpen(false)}
