@@ -86,7 +86,7 @@ export const formatRemainingDays = (
     const differenceInTime = today.getTime() - paymentDateObj.getTime();
     const differenceInDays = Math.floor(differenceInTime / (1000 * 3600 * 24));
     
-    // Calculate remaining days
+    // Calculate remaining days as totalDays minus days passed
     const remainingDays = Math.max(0, totalDays - differenceInDays);
     
     return `${remainingDays} Dias`;

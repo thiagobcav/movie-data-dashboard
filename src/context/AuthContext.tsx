@@ -51,7 +51,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Parse days from "587 days 19:32:15.493125" format
       const daysMatch = remainingText.match(/(\d+) days?/);
       if (daysMatch && daysMatch[1]) {
-        return parseInt(daysMatch[1]);
+        // Calculate remaining days as totalDays minus the days from remainingText
+        const daysFromText = parseInt(daysMatch[1]);
+        return Math.max(0, totalDays - daysFromText);
       }
       return 0;
     } catch (error) {
@@ -105,14 +107,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Check remaining days
+      // Calculate remaining days (Dias - Restantes)
       const remainingDays = formatRemainingDays(userData.Restantes, userData.Dias);
       const formattedUser = {
         ...userData,
         Restam: remainingDays
       };
       
-      if (remainingDays > userData.Dias) {
+      if (remainingDays <= 0) {
         toast.error('Sua assinatura expirou');
         return false;
       }

@@ -88,7 +88,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleDarkMode, isDarkMode }) => {
                     UUID: {user.UUID}
                   </DropdownMenuItem>
                   <DropdownMenuItem className="text-xs text-muted-foreground cursor-default">
-                    Dias restantes: {user.Restam}
+                    Dias restantes: {user.Restam} de {user.Dias}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive">
