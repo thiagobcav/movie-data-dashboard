@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useConfig } from '../../context/ConfigContext';
 import { Button } from '@/components/ui/button';
@@ -29,8 +30,8 @@ const ConfigPanel: React.FC = () => {
 
   const handleSaveApiConfig = () => {
     if (showMixedContentWarning) {
-      toast.info('URL HTTP detectada. Um serviço de proxy será usado para consultas GET.', {
-        description: 'Note que operações de escrita (POST, PUT, DELETE) não são suportadas via proxy.'
+      toast.info('URL HTTP detectada. Um serviço de proxy será usado para todas as requisições.', {
+        description: 'O proxy agora suporta todos os métodos HTTP: GET, POST, PATCH, DELETE.'
       });
     }
     
@@ -93,7 +94,7 @@ const ConfigPanel: React.FC = () => {
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder="URL base da API Baserow"
-                  className={showMixedContentWarning ? "border-amber-500" : ""}
+                  className={showMixedContentWarning ? "border-amber-300" : ""}
                 />
                 <p className="text-sm text-muted-foreground">
                   Por padrão: https://api.baserow.io/api
@@ -104,18 +105,13 @@ const ConfigPanel: React.FC = () => {
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium">Atenção: Usando proxy para contornar restrições</p>
+                        <p className="font-medium">Usando proxy para contornar restrições</p>
                         <p className="mt-1">
-                          Você está configurando uma API HTTP em um site HTTPS. Um serviço de proxy será usado para consultas GET.
+                          Você está configurando uma API HTTP em um site HTTPS. Um serviço de proxy será usado para todas as requisições.
                         </p>
-                        <p className="mt-1 font-medium">
-                          Limitações:
+                        <p className="mt-1">
+                          O serviço de proxy agora suporta todos os métodos HTTP (GET, POST, PATCH, DELETE).
                         </p>
-                        <ul className="mt-1 list-disc list-inside">
-                          <li>Apenas consultas GET são suportadas pelo proxy</li>
-                          <li>Operações de escrita (POST, PUT, DELETE) não funcionarão</li>
-                          <li>Para funcionalidade completa, use HTTPS para a API</li>
-                        </ul>
                       </div>
                     </div>
                   </div>

@@ -28,12 +28,12 @@ const Settings = () => {
                 automaticamente utilizado para contornar as restrições de segurança dos navegadores.
               </p>
               <p className="font-medium">
-                Limitações do proxy:
+                Informações sobre o proxy:
               </p>
               <ul className="list-disc list-inside">
-                <li>Apenas consultas GET são suportadas</li>
-                <li>Operações de escrita (POST, PUT, DELETE) não funcionarão</li>
-                <li>Para funcionalidade completa, use uma API com HTTPS</li>
+                <li>O proxy agora suporta todos os métodos HTTP (GET, POST, PATCH, DELETE)</li>
+                <li>Os dados são processados de forma segura pelo proxy</li>
+                <li>Para maior segurança, considere usar uma API com HTTPS</li>
               </ul>
             </AlertDescription>
           </Alert>

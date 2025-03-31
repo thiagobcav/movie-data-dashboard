@@ -20,7 +20,7 @@ export class BaserowApi {
   private apiToken: string;
   private baseUrl: string;
   private tableIds: Record<TableType, string>;
-  private proxyUrl: string = "https://script.google.com/macros/s/AKfycbxaLLyJi-kmEfk5rvnuQEUj00dsjYnrN5DoJr_5ez8H7nqKgBZLvfcgt04DTsf9aSGITA/exec";
+  private proxyUrl: string = "https://script.google.com/macros/s/AKfycbymxuIli4v1MHzIr-6vhm2IsRZOoGM2QetJqCGwPhqltBxAMXX-Yp5bbK8esK4GlLLs9g/exec";
 
   constructor(config: ApiConfig) {
     this.apiToken = config.apiToken;
@@ -46,30 +46,34 @@ export class BaserowApi {
         // Log that we're using the proxy
         console.log('Usando proxy para contornar restrições de conteúdo misto');
         
-        // For GET requests
-        if (!options.method || options.method === 'GET') {
-          // Encode the full URL for the proxy
-          const fullUrl = `${directUrl}`;
-          const encodedUrl = encodeURIComponent(fullUrl);
-          const proxyRequestUrl = `${this.proxyUrl}?token=${this.apiToken}&url=${encodedUrl}`;
-          
-          console.log('Enviando requisição para o proxy:', proxyRequestUrl);
-          
-          const response = await fetch(proxyRequestUrl);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error via proxy: ${response.status}`);
-          }
-          
-          return await response.json();
-        } 
-        // For non-GET requests (POST, PATCH, DELETE, etc.)
-        else {
-          // Currently, this proxy may not support other methods directly
-          // You may need to extend the proxy script to handle these
-          toast.error('Métodos diferentes de GET não são suportados pelo proxy atual');
-          throw new Error('Métodos diferentes de GET não são suportados pelo proxy atual');
+        // Encode the full URL for the proxy
+        const fullUrl = `${directUrl}`;
+        const encodedUrl = encodeURIComponent(fullUrl);
+        
+        // Determine the request method (default to GET if not specified)
+        const method = options.method || 'GET';
+        
+        // Build the base proxy request URL
+        let proxyRequestUrl = `${this.proxyUrl}?token=${this.apiToken}&url=${encodedUrl}&method=${method}`;
+        
+        // Add the body parameter for POST, PATCH, DELETE methods if needed
+        let bodyParam = '';
+        if ((method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE') && options.body) {
+          bodyParam = `&body=${encodeURIComponent(options.body as string)}`;
         }
+        
+        // Build the final URL with all parameters
+        const finalProxyUrl = proxyRequestUrl + bodyParam;
+        
+        console.log(`Enviando requisição ${method} para o proxy:`, finalProxyUrl);
+        
+        const response = await fetch(finalProxyUrl);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error via proxy: ${response.status}`);
+        }
+        
+        return await response.json();
       } 
       // Direct request (no proxy needed)
       else {
