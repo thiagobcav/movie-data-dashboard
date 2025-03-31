@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useConfig } from '../../context/ConfigContext';
 import { Button } from '@/components/ui/button';
@@ -29,13 +28,10 @@ const ConfigPanel: React.FC = () => {
   const showMixedContentWarning = isHttps && isHttpApi;
 
   const handleSaveApiConfig = () => {
-    // Confirma antes se o usuário quer realmente usar HTTP com HTTPS
     if (showMixedContentWarning) {
-      if (!window.confirm(
-        'Você está tentando usar uma API HTTP em um site HTTPS. Isso pode causar problemas de bloqueio pelo navegador. Deseja continuar mesmo assim?'
-      )) {
-        return;
-      }
+      toast.info('URL HTTP detectada. Um serviço de proxy será usado para consultas GET.', {
+        description: 'Note que operações de escrita (POST, PUT, DELETE) não são suportadas via proxy.'
+      });
     }
     
     config.updateApiToken(apiToken);
@@ -108,17 +104,17 @@ const ConfigPanel: React.FC = () => {
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium">Atenção: Possível problema de conteúdo misto</p>
+                        <p className="font-medium">Atenção: Usando proxy para contornar restrições</p>
                         <p className="mt-1">
-                          Você está tentando usar uma API HTTP em um site HTTPS. Os navegadores modernos bloqueiam esse tipo de requisição por segurança.
+                          Você está configurando uma API HTTP em um site HTTPS. Um serviço de proxy será usado para consultas GET.
                         </p>
-                        <p className="mt-1">
-                          Soluções possíveis:
+                        <p className="mt-1 font-medium">
+                          Limitações:
                         </p>
                         <ul className="mt-1 list-disc list-inside">
-                          <li>Use HTTPS para a API (recomendado)</li>
-                          <li>Acesse este painel através de HTTP</li>
-                          <li>Execute a API localmente</li>
+                          <li>Apenas consultas GET são suportadas pelo proxy</li>
+                          <li>Operações de escrita (POST, PUT, DELETE) não funcionarão</li>
+                          <li>Para funcionalidade completa, use HTTPS para a API</li>
                         </ul>
                       </div>
                     </div>

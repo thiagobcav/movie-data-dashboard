@@ -20,6 +20,7 @@ export class BaserowApi {
   private apiToken: string;
   private baseUrl: string;
   private tableIds: Record<TableType, string>;
+  private proxyUrl: string = "https://script.google.com/macros/s/AKfycbxaLLyJi-kmEfk5rvnuQEUj00dsjYnrN5DoJr_5ez8H7nqKgBZLvfcgt04DTsf9aSGITA/exec";
 
   constructor(config: ApiConfig) {
     this.apiToken = config.apiToken;
@@ -33,94 +34,109 @@ export class BaserowApi {
       throw new Error('API Token não configurado');
     }
 
-    const url = `${this.baseUrl}/${endpoint}`;
-    
+    const directUrl = `${this.baseUrl}/${endpoint}`;
+    const isHttpUrl = this.baseUrl.startsWith('http:');
     const isMixedContent = typeof window !== 'undefined' && 
         window.location.protocol === 'https:' && 
-        url.startsWith('http://');
+        isHttpUrl;
     
-    // Verifica se estamos tentando fazer uma requisição HTTP a partir de uma página HTTPS
-    if (isMixedContent) {
-      console.warn('Tentativa de fazer requisição HTTP a partir de uma página HTTPS');
-      toast.warning('Atenção: Requisições HTTP podem ser bloqueadas pelo navegador em sites HTTPS.', {
-        description: 'Acesse este site via HTTP ou use HTTPS para a API.'
-      });
-    }
-    
-    const defaultOptions: RequestInit = {
-      headers: {
-        'Authorization': `Token ${this.apiToken}`,
-        'Content-Type': 'application/json',
-      },
-    };
-
     try {
-      // Log da requisição para depuração
-      console.log('Enviando requisição para:', url);
-      console.log('Método:', options.method || 'GET');
-      console.log('Corpo:', options.body ? JSON.parse(options.body as string) : 'Sem corpo');
-      
-      // Se for mixed content, adicionamos um modo diferente para tentar contornar
+      // Determine if we need to use the proxy
       if (isMixedContent) {
-        defaultOptions.mode = 'cors';
-        defaultOptions.credentials = 'omit';
-      }
-      
-      const response = await fetch(url, {
-        ...defaultOptions,
-        ...options,
-        headers: {
-          ...defaultOptions.headers,
-          ...(options.headers || {}),
-        },
-      });
+        // Log that we're using the proxy
+        console.log('Usando proxy para contornar restrições de conteúdo misto');
+        
+        // For GET requests
+        if (!options.method || options.method === 'GET') {
+          // Encode the full URL for the proxy
+          const fullUrl = `${directUrl}`;
+          const encodedUrl = encodeURIComponent(fullUrl);
+          const proxyRequestUrl = `${this.proxyUrl}?token=${this.apiToken}&url=${encodedUrl}`;
+          
+          console.log('Enviando requisição para o proxy:', proxyRequestUrl);
+          
+          const response = await fetch(proxyRequestUrl);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error via proxy: ${response.status}`);
+          }
+          
+          return await response.json();
+        } 
+        // For non-GET requests (POST, PATCH, DELETE, etc.)
+        else {
+          // Currently, this proxy may not support other methods directly
+          // You may need to extend the proxy script to handle these
+          toast.error('Métodos diferentes de GET não são suportados pelo proxy atual');
+          throw new Error('Métodos diferentes de GET não são suportados pelo proxy atual');
+        }
+      } 
+      // Direct request (no proxy needed)
+      else {
+        console.log('Enviando requisição direta para:', directUrl);
+        console.log('Método:', options.method || 'GET');
+        console.log('Corpo:', options.body ? JSON.parse(options.body as string) : 'Sem corpo');
+        
+        const defaultOptions: RequestInit = {
+          headers: {
+            'Authorization': `Token ${this.apiToken}`,
+            'Content-Type': 'application/json',
+          },
+        };
+        
+        const response = await fetch(directUrl, {
+          ...defaultOptions,
+          ...options,
+          headers: {
+            ...defaultOptions.headers,
+            ...(options.headers || {}),
+          },
+        });
 
-      // Log da resposta para depuração
-      console.log('Status da resposta:', response.status);
-      
-      if (!response.ok) {
+        console.log('Status da resposta:', response.status);
+        
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type');
+          let errorData: any = {};
+          
+          if (contentType && contentType.includes('application/json')) {
+            errorData = await response.json().catch(() => ({}));
+          } else {
+            const text = await response.text().catch(() => '');
+            errorData = { error: text || `HTTP error ${response.status}` };
+          }
+          
+          console.error('API error details:', errorData);
+          
+          if (errorData.errors) {
+            const errorDetails = Object.entries(errorData.errors)
+              .map(([field, messages]) => `${field}: ${messages}`)
+              .join(', ');
+            throw new Error(`Erro de validação: ${errorDetails}`);
+          }
+          
+          throw new Error(errorData.error || errorData.detail || `HTTP error ${response.status}`);
+        }
+
+        // Verifica se a resposta contém JSON
         const contentType = response.headers.get('content-type');
-        let errorData: any = {};
-        
         if (contentType && contentType.includes('application/json')) {
-          errorData = await response.json().catch(() => ({}));
-        } else {
-          const text = await response.text().catch(() => '');
-          errorData = { error: text || `HTTP error ${response.status}` };
+          return await response.json();
         }
         
-        console.error('API error details:', errorData);
-        
-        // Mensagem de erro mais detalhada
-        if (errorData.errors) {
-          const errorDetails = Object.entries(errorData.errors)
-            .map(([field, messages]) => `${field}: ${messages}`)
-            .join(', ');
-          throw new Error(`Erro de validação: ${errorDetails}`);
-        }
-        
-        throw new Error(errorData.error || errorData.detail || `HTTP error ${response.status}`);
+        // Se não for JSON, retorna o texto
+        return await response.text();
       }
-
-      // Verifica se a resposta contém JSON
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
-      }
-      
-      // Se não for JSON, retorna o texto
-      return await response.text();
     } catch (error) {
       console.error('API request failed:', error);
       
-      // Mensagem de erro específica para problemas de mixed content
       if ((error as Error).message.includes('Failed to fetch') ||
           (error as Error).message.includes('NetworkError') ||
           (error as Error).message.includes('Network request failed')) {
         
         if (isMixedContent) {
-          toast.error('Erro de conteúdo misto: O navegador bloqueou a requisição HTTP.', {
-            description: 'Para resolver: 1) Use HTTPS para a API ou 2) Acesse este site via HTTP ou 3) Execute a API localmente.'
+          toast.error('Erro ao acessar API via proxy.', {
+            description: 'Verifique se o URL e token estão corretos.'
           });
         } else {
           toast.error('Erro de conexão com a API.', {
