@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 
 export type TableType = 
@@ -34,6 +33,13 @@ export class BaserowApi {
     }
 
     const url = `${this.baseUrl}/${endpoint}`;
+    
+    if (typeof window !== 'undefined' && 
+        window.location.protocol === 'https:' && 
+        url.startsWith('http://')) {
+      console.warn('Tentativa de fazer requisição HTTP a partir de uma página HTTPS');
+      toast.warning('Atenção: Requisições HTTP podem ser bloqueadas pelo navegador em sites HTTPS. Considere usar HTTPS para a API.');
+    }
     
     const defaultOptions: RequestInit = {
       headers: {
@@ -94,7 +100,17 @@ export class BaserowApi {
       return await response.text();
     } catch (error) {
       console.error('API request failed:', error);
-      toast.error(`Erro na requisição: ${(error as Error).message}`);
+      
+      // Mensagem de erro personalizada para problemas de mixed content
+      if ((error as Error).message.includes('Failed to fetch') && 
+          typeof window !== 'undefined' && 
+          window.location.protocol === 'https:' && 
+          this.baseUrl.startsWith('http://')) {
+        toast.error('Erro de conteúdo misto: O navegador bloqueou a requisição HTTP em um site HTTPS. Use HTTPS para a API ou execute o site em HTTP.');
+      } else {
+        toast.error(`Erro na requisição: ${(error as Error).message}`);
+      }
+      
       throw error;
     }
   }
