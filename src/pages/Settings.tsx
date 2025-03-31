@@ -19,7 +19,7 @@ const Settings = () => {
         </div>
 
         {isHttps && (
-          <Alert variant="warning" className="bg-amber-50 border-amber-200">
+          <Alert className="bg-amber-50 border-amber-200">
             <InfoIcon className="h-4 w-4 text-amber-600" />
             <AlertTitle>Atenção ao usar URLs HTTP</AlertTitle>
             <AlertDescription>

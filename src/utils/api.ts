@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 
 export type TableType = 
@@ -34,11 +35,16 @@ export class BaserowApi {
 
     const url = `${this.baseUrl}/${endpoint}`;
     
-    if (typeof window !== 'undefined' && 
+    const isMixedContent = typeof window !== 'undefined' && 
         window.location.protocol === 'https:' && 
-        url.startsWith('http://')) {
+        url.startsWith('http://');
+    
+    // Verifica se estamos tentando fazer uma requisição HTTP a partir de uma página HTTPS
+    if (isMixedContent) {
       console.warn('Tentativa de fazer requisição HTTP a partir de uma página HTTPS');
-      toast.warning('Atenção: Requisições HTTP podem ser bloqueadas pelo navegador em sites HTTPS. Considere usar HTTPS para a API.');
+      toast.warning('Atenção: Requisições HTTP podem ser bloqueadas pelo navegador em sites HTTPS.', {
+        description: 'Acesse este site via HTTP ou use HTTPS para a API.'
+      });
     }
     
     const defaultOptions: RequestInit = {
@@ -53,6 +59,12 @@ export class BaserowApi {
       console.log('Enviando requisição para:', url);
       console.log('Método:', options.method || 'GET');
       console.log('Corpo:', options.body ? JSON.parse(options.body as string) : 'Sem corpo');
+      
+      // Se for mixed content, adicionamos um modo diferente para tentar contornar
+      if (isMixedContent) {
+        defaultOptions.mode = 'cors';
+        defaultOptions.credentials = 'omit';
+      }
       
       const response = await fetch(url, {
         ...defaultOptions,
@@ -101,12 +113,20 @@ export class BaserowApi {
     } catch (error) {
       console.error('API request failed:', error);
       
-      // Mensagem de erro personalizada para problemas de mixed content
-      if ((error as Error).message.includes('Failed to fetch') && 
-          typeof window !== 'undefined' && 
-          window.location.protocol === 'https:' && 
-          this.baseUrl.startsWith('http://')) {
-        toast.error('Erro de conteúdo misto: O navegador bloqueou a requisição HTTP em um site HTTPS. Use HTTPS para a API ou execute o site em HTTP.');
+      // Mensagem de erro específica para problemas de mixed content
+      if ((error as Error).message.includes('Failed to fetch') ||
+          (error as Error).message.includes('NetworkError') ||
+          (error as Error).message.includes('Network request failed')) {
+        
+        if (isMixedContent) {
+          toast.error('Erro de conteúdo misto: O navegador bloqueou a requisição HTTP.', {
+            description: 'Para resolver: 1) Use HTTPS para a API ou 2) Acesse este site via HTTP ou 3) Execute a API localmente.'
+          });
+        } else {
+          toast.error('Erro de conexão com a API.', {
+            description: 'Verifique se a URL da API está correta e se o servidor está acessível.'
+          });
+        }
       } else {
         toast.error(`Erro na requisição: ${(error as Error).message}`);
       }

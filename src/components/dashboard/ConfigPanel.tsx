@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { InfoCircle } from 'lucide-react';
 
 const ConfigPanel: React.FC = () => {
   const config = useConfig();
@@ -23,7 +24,20 @@ const ConfigPanel: React.FC = () => {
     platforms: config.tableIds.platforms,
   });
 
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isHttpApi = baseUrl.startsWith('http:');
+  const showMixedContentWarning = isHttps && isHttpApi;
+
   const handleSaveApiConfig = () => {
+    // Confirma antes se o usuário quer realmente usar HTTP com HTTPS
+    if (showMixedContentWarning) {
+      if (!window.confirm(
+        'Você está tentando usar uma API HTTP em um site HTTPS. Isso pode causar problemas de bloqueio pelo navegador. Deseja continuar mesmo assim?'
+      )) {
+        return;
+      }
+    }
+    
     config.updateApiToken(apiToken);
     config.updateBaseUrl(baseUrl);
     toast.success('Configurações da API atualizadas');
@@ -83,10 +97,33 @@ const ConfigPanel: React.FC = () => {
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder="URL base da API Baserow"
+                  className={showMixedContentWarning ? "border-amber-500" : ""}
                 />
                 <p className="text-sm text-muted-foreground">
                   Por padrão: https://api.baserow.io/api
                 </p>
+                
+                {showMixedContentWarning && (
+                  <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm">
+                    <div className="flex items-start gap-2">
+                      <InfoCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">Atenção: Possível problema de conteúdo misto</p>
+                        <p className="mt-1">
+                          Você está tentando usar uma API HTTP em um site HTTPS. Os navegadores modernos bloqueiam esse tipo de requisição por segurança.
+                        </p>
+                        <p className="mt-1">
+                          Soluções possíveis:
+                        </p>
+                        <ul className="mt-1 list-disc list-inside">
+                          <li>Use HTTPS para a API (recomendado)</li>
+                          <li>Acesse este painel através de HTTP</li>
+                          <li>Execute a API localmente</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
               <Button onClick={handleSaveApiConfig}>
