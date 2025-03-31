@@ -34,10 +34,11 @@ const Sessions = () => {
   const pageSize = 10;
 
   const columns = [
-    { key: 'Categoria', label: 'Categoria' },
+    { key: 'Categoria', label: 'Categoria', sortable: true },
     { 
       key: 'Tipo', 
       label: 'Tipo',
+      sortable: true,
       render: (value: string) => {
         const colorMap: Record<string, string> = {
           'Filme': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',

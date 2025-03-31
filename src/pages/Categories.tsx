@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -26,7 +25,7 @@ const Categories = () => {
   const pageSize = 10;
 
   const columns = [
-    { key: 'Nome', label: 'Nome' },
+    { key: 'Nome', label: 'Nome', sortable: true },
   ];
 
   const fetchData = async () => {

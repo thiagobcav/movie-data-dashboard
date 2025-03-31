@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -27,10 +26,11 @@ const Platforms = () => {
   const pageSize = 10;
 
   const columns = [
-    { key: 'Categoria', label: 'Categoria' },
+    { key: 'Categoria', label: 'Categoria', sortable: true },
     { 
       key: 'Imagem', 
       label: 'Imagem',
+      sortable: false,
       render: (value: string) => value ? (
         <div className="w-12 h-12 rounded overflow-hidden bg-gray-100">
           <img 

@@ -10,7 +10,15 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { ArrowLeft, ArrowRight, Search, Edit, Trash, Eye, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Search, Edit, Trash, Eye, Plus, ArrowDown, ArrowUp } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface DataTableProps {
   data: any[];
@@ -18,6 +26,7 @@ interface DataTableProps {
     key: string;
     label: string;
     render?: (value: any, row: any) => React.ReactNode;
+    sortable?: boolean;
   }[];
   onView?: (row: any) => void;
   onEdit?: (row: any) => void;
@@ -42,6 +51,10 @@ const DataTable: React.FC<DataTableProps> = ({
   onPageChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: 'asc' | 'desc';
+  } | null>(null);
 
   // Filter data based on search term
   const filteredData = searchTerm
@@ -56,6 +69,47 @@ const DataTable: React.FC<DataTableProps> = ({
       )
     : data;
 
+  // Sort data based on sort configuration
+  const sortedData = React.useMemo(() => {
+    if (!sortConfig) return filteredData;
+
+    return [...filteredData].sort((a, b) => {
+      const valueA = a[sortConfig.key];
+      const valueB = b[sortConfig.key];
+
+      if (valueA === valueB) return 0;
+      
+      const direction = sortConfig.direction === 'asc' ? 1 : -1;
+      
+      if (typeof valueA === 'string' && typeof valueB === 'string') {
+        return valueA.localeCompare(valueB) * direction;
+      }
+      
+      if (valueA instanceof Date && valueB instanceof Date) {
+        return (valueA.getTime() - valueB.getTime()) * direction;
+      }
+      
+      if (valueA === null || valueA === undefined) return 1 * direction;
+      if (valueB === null || valueB === undefined) return -1 * direction;
+      
+      return (valueA > valueB ? 1 : -1) * direction;
+    });
+  }, [filteredData, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prevSortConfig) => {
+      if (prevSortConfig && prevSortConfig.key === key) {
+        // Toggle direction if same key
+        return {
+          key,
+          direction: prevSortConfig.direction === 'asc' ? 'desc' : 'asc',
+        };
+      }
+      // Default to ascending for new key
+      return { key, direction: 'asc' };
+    });
+  };
+
   return (
     <div className="w-full space-y-4 animate-fade-in">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -69,12 +123,53 @@ const DataTable: React.FC<DataTableProps> = ({
           />
         </div>
         
-        {onAdd && (
-          <Button onClick={onAdd} className="gap-2">
-            <Plus size={16} />
-            <span className="hidden sm:inline">Adicionar</span>
-          </Button>
-        )}
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                {sortConfig ? (
+                  sortConfig.direction === 'asc' ? <ArrowUp size={16} /> : <ArrowDown size={16} />
+                ) : (
+                  <ArrowDown size={16} />
+                )}
+                <span className="hidden sm:inline">Ordenar</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Opções de ordenação</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {columns.filter(column => column.sortable !== false).map((column) => (
+                <DropdownMenuItem 
+                  key={column.key} 
+                  onClick={() => handleSort(column.key)}
+                  className="flex justify-between"
+                >
+                  <span>{column.label}</span>
+                  {sortConfig?.key === column.key && (
+                    sortConfig.direction === 'asc' 
+                      ? <ArrowUp size={16} /> 
+                      : <ArrowDown size={16} />
+                  )}
+                </DropdownMenuItem>
+              ))}
+              {sortConfig && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setSortConfig(null)}>
+                    Limpar ordenação
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {onAdd && (
+            <Button onClick={onAdd} className="gap-2">
+              <Plus size={16} />
+              <span className="hidden sm:inline">Adicionar</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-hidden">
@@ -82,7 +177,20 @@ const DataTable: React.FC<DataTableProps> = ({
           <TableHeader>
             <TableRow>
               {columns.map((column) => (
-                <TableHead key={column.key}>{column.label}</TableHead>
+                <TableHead 
+                  key={column.key}
+                  className={column.sortable !== false ? "cursor-pointer" : ""}
+                  onClick={column.sortable !== false ? () => handleSort(column.key) : undefined}
+                >
+                  <div className="flex items-center gap-1">
+                    {column.label}
+                    {sortConfig?.key === column.key && (
+                      sortConfig.direction === 'asc' 
+                        ? <ArrowUp size={14} /> 
+                        : <ArrowDown size={14} />
+                    )}
+                  </div>
+                </TableHead>
               ))}
               {(onView || onEdit || onDelete) && (
                 <TableHead className="text-right">Ações</TableHead>
@@ -102,7 +210,7 @@ const DataTable: React.FC<DataTableProps> = ({
                   </div>
                 </TableCell>
               </TableRow>
-            ) : filteredData.length === 0 ? (
+            ) : sortedData.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (onView || onEdit || onDelete ? 1 : 0)}
@@ -112,7 +220,7 @@ const DataTable: React.FC<DataTableProps> = ({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredData.map((row, rowIndex) => (
+              sortedData.map((row, rowIndex) => (
                 <TableRow key={rowIndex}>
                   {columns.map((column) => (
                     <TableCell key={column.key}>

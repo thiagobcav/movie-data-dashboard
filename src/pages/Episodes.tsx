@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -31,10 +30,11 @@ const Episodes = () => {
   const pageSize = 10;
 
   const columns = [
-    { key: 'Nome', label: 'Nome' },
+    { key: 'Nome', label: 'Nome', sortable: true },
     { 
       key: 'Link', 
       label: 'Link',
+      sortable: false,
       render: (value: string) => value ? (
         <a 
           href={value} 
@@ -49,6 +49,7 @@ const Episodes = () => {
     { 
       key: 'Temporada', 
       label: 'Temporada',
+      sortable: true,
       render: (value: number) => (
         <Badge variant="outline">
           T{value || 0}
@@ -58,6 +59,7 @@ const Episodes = () => {
     { 
       key: 'Episódio', 
       label: 'Episódio',
+      sortable: true,
       render: (value: number) => (
         <Badge variant="outline">
           E{value || 0}
@@ -67,6 +69,7 @@ const Episodes = () => {
     { 
       key: 'Histórico', 
       label: 'Visualizações',
+      sortable: true,
       render: (value: string) => {
         const historico = convertJsonToArray(value);
         return historico.length;
