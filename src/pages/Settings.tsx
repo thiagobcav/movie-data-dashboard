@@ -3,7 +3,7 @@ import React from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ConfigPanel from '@/components/dashboard/ConfigPanel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { InfoIcon } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 const Settings = () => {
   const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
@@ -20,7 +20,7 @@ const Settings = () => {
 
         {isHttps && (
           <Alert className="bg-amber-50 border-amber-200">
-            <InfoIcon className="h-4 w-4 text-amber-600" />
+            <Info className="h-4 w-4 text-amber-600" />
             <AlertTitle>Atenção ao usar URLs HTTP</AlertTitle>
             <AlertDescription>
               Este site está rodando em HTTPS. Navegadores modernos bloqueiam requisições HTTP a partir de sites HTTPS por segurança.

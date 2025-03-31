@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { InfoCircle } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 const ConfigPanel: React.FC = () => {
   const config = useConfig();
@@ -106,7 +106,7 @@ const ConfigPanel: React.FC = () => {
                 {showMixedContentWarning && (
                   <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm">
                     <div className="flex items-start gap-2">
-                      <InfoCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                       <div>
                         <p className="font-medium">Atenção: Possível problema de conteúdo misto</p>
                         <p className="mt-1">
