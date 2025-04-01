@@ -9,11 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import BannerCarousel from '@/components/dashboard/BannerCarousel';
 
 const Index = () => {
   const navigate = useNavigate();
   const config = useConfig();
   const [isLoading, setIsLoading] = useState(true);
+  const [banners, setBanners] = useState([]);
   const [stats, setStats] = useState({
     contents: 0,
     episodes: 0,
@@ -38,6 +40,17 @@ const Index = () => {
     });
 
     try {
+      // Fetch banners
+      if (config.tableIds.banners) {
+        try {
+          const bannersResponse = await api.getTableRows('banners', 1, 10);
+          setBanners(bannersResponse.results || []);
+        } catch (error) {
+          console.error('Error fetching banners:', error);
+        }
+      }
+
+      // Fetch stats
       const statsPromises = Object.keys(stats).map(async (tableType) => {
         if (!config.tableIds[tableType as keyof typeof config.tableIds]) {
           return { tableType, count: 0 };
@@ -96,6 +109,13 @@ const Index = () => {
             <span>Configurações</span>
           </Button>
         </div>
+
+        {/* Banner Carousel */}
+        {banners.length > 0 && (
+          <div className="w-full overflow-hidden rounded-lg border shadow-sm">
+            <BannerCarousel banners={banners} />
+          </div>
+        )}
 
         {!config.apiToken ? (
           <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 animate-fade-in">

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -12,6 +11,8 @@ import { checkAndNotifyDuplicates } from '@/utils/duplicateChecker';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle } from 'lucide-react';
 
 const Episodes = () => {
   const config = useConfig();
@@ -106,14 +107,12 @@ const Episodes = () => {
         tableIds: config.tableIds,
       });
 
-      // Construir parâmetros de ordenação e pesquisa
       let orderBy = 'order_by=-Data';
       if (sort) {
         const direction = sort.direction === 'asc' ? '' : '-';
         orderBy = `order_by=${direction}${sort.key}`;
       }
 
-      // Adicionar parâmetro de pesquisa se necessário
       let searchParam = '';
       if (search) {
         searchParam = `&search=${encodeURIComponent(search)}`;
@@ -124,7 +123,6 @@ const Episodes = () => {
       setData(response.results || []);
       setTotalPages(Math.ceil((response.count || 0) / pageSize));
       
-      // Verificar duplicatas
       checkAndNotifyDuplicates(response.results || [], 'Nome', 'episódio');
       
     } catch (error) {
@@ -141,7 +139,7 @@ const Episodes = () => {
 
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    setCurrentPage(1); // Voltar para a primeira página ao pesquisar
+    setCurrentPage(1);
     fetchData(1, term, sortConfig);
   };
 
@@ -224,9 +222,7 @@ const Episodes = () => {
         tableIds: config.tableIds,
       });
 
-      // Verificar se já existe um episódio com o mesmo nome
       if (!currentEpisode) {
-        // Só verificar duplicatas para novos episódios
         const searchResponse = await api.getTableRows(
           'episodes', 
           1, 
@@ -246,11 +242,9 @@ const Episodes = () => {
       }
 
       if (currentEpisode) {
-        // Update
         await api.updateRow('episodes', currentEpisode.id, formData);
         toast.success('Episódio atualizado com sucesso');
       } else {
-        // Create
         await api.createRow('episodes', formData);
         toast.success('Episódio criado com sucesso');
       }
@@ -291,6 +285,71 @@ const Episodes = () => {
     }
   };
 
+  const checkSeasonEpisodeDuplicates = useCallback(async () => {
+    if (!config.apiToken || !config.tableIds.episodes) {
+      toast.error('Configure o token da API e o ID da tabela');
+      return [];
+    }
+
+    setIsLoading(true);
+    try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
+      const response = await api.getTableRows('episodes', 1, 1000);
+      const episodes = response.results || [];
+      
+      const duplicatesMap = new Map();
+      
+      episodes.forEach(episode => {
+        const key = `T${episode.Temporada}-E${episode.Episódio}-${episode.Nome}`;
+        if (!duplicatesMap.has(key)) {
+          duplicatesMap.set(key, []);
+        }
+        duplicatesMap.get(key).push(episode);
+      });
+      
+      const duplicates = [];
+      duplicatesMap.forEach((group, key) => {
+        if (group.length > 1) {
+          duplicates.push({
+            key,
+            items: group
+          });
+        }
+      });
+      
+      setIsLoading(false);
+      
+      if (duplicates.length === 0) {
+        toast.success('Não foram encontrados episódios duplicados');
+        return [];
+      }
+      
+      const duplicatesList = duplicates.map(group => 
+        `"${group.key}" (${group.items.length} itens)`
+      ).join(', ');
+      
+      toast.warning(
+        `Duplicatas de episódios encontradas`, 
+        {
+          description: `Os seguintes episódios aparecem mais de uma vez: ${duplicatesList}`,
+          duration: 5000,
+        }
+      );
+      
+      return duplicates;
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      toast.error('Erro ao verificar episódios duplicados');
+      setIsLoading(false);
+      return [];
+    }
+  }, [config.apiToken, config.baseUrl, config.tableIds]);
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
@@ -308,20 +367,45 @@ const Episodes = () => {
             </p>
           </div>
         ) : (
-          <DataTable
-            data={data}
-            columns={columns}
-            isLoading={isLoading}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onAdd={handleAdd}
-            onSearch={handleSearch}
-            onSort={handleSort}
-          />
+          <>
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+                onClick={() => {
+                  const result = checkSeasonEpisodeDuplicates();
+                  if (result) {
+                    // Se houver duplicatas, navegue para a página de duplicatas
+                    // Você poderia implementar navegação aqui
+                  }
+                }}
+              >
+                <AlertTriangle size={16} className="text-amber-500" />
+                <span>Verificar Duplicatas</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/duplicates/episodes')}
+              >
+                Ver Página de Duplicatas
+              </Button>
+            </div>
+            
+            <DataTable
+              data={data}
+              columns={columns}
+              isLoading={isLoading}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              onView={handleView}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onAdd={handleAdd}
+              onSearch={handleSearch}
+              onSort={handleSort}
+            />
+          </>
         )}
       </div>
 
