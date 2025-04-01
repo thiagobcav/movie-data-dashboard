@@ -99,21 +99,21 @@ const Contents = () => {
       key: 'Views', 
       label: 'Views',
       sortable: true,
-      dataType: 'number',
+      dataType: 'number' as const,
       render: (value: number) => value ? value.toLocaleString() : '0'
     },
     { 
       key: 'Temporadas', 
       label: 'Temporadas',
       sortable: true,
-      dataType: 'number',
+      dataType: 'number' as const,
       render: (value: number) => value || '0'
     },
     {
       key: 'Data',
       label: 'Data',
       sortable: true,
-      dataType: 'date',
+      dataType: 'date' as const,
       render: (value: string) => value ? new Date(value).toLocaleDateString('pt-BR') : '-'
     },
   ];

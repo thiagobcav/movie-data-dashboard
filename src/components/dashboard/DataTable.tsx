@@ -123,9 +123,13 @@ const DataTable: React.FC<DataTableProps> = ({
 
   const handleSort = (key: string) => {
     setSortConfig((prevSortConfig) => {
+      const newDirection: 'asc' | 'desc' = prevSortConfig && prevSortConfig.key === key && prevSortConfig.direction === 'asc' 
+        ? 'desc' 
+        : 'asc';
+      
       const newConfig = {
         key,
-        direction: prevSortConfig && prevSortConfig.key === key && prevSortConfig.direction === 'asc' ? 'desc' : 'asc',
+        direction: newDirection
       };
       
       // Se existe callback de ordenação externa, chamar
