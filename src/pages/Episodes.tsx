@@ -92,7 +92,7 @@ const Episodes = () => {
         tableIds: config.tableIds,
       });
 
-      const response = await api.getTableRows('episodes', currentPage, pageSize);
+      const response = await api.getTableRows('episodes', currentPage, pageSize, 'order_by=-Data');
       
       setData(response.results || []);
       setTotalPages(Math.ceil((response.count || 0) / pageSize));

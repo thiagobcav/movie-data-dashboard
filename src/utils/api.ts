@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 
 export type TableType = 
@@ -155,7 +154,7 @@ export class BaserowApi {
     }
   }
 
-  async getTableRows(tableType: TableType, page = 1, pageSize = 20) {
+  async getTableRows(tableType: TableType, page = 1, pageSize = 20, orderBy?: string) {
     const tableId = this.tableIds[tableType];
     
     if (!tableId) {
@@ -163,7 +162,14 @@ export class BaserowApi {
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
-    return this.request(`database/rows/table/${tableId}/?user_field_names=true&page=${page}&size=${pageSize}`);
+    let endpoint = `database/rows/table/${tableId}/?user_field_names=true&page=${page}&size=${pageSize}`;
+    
+    // Add order_by parameter if provided
+    if (orderBy) {
+      endpoint += `&${orderBy}`;
+    }
+
+    return this.request(endpoint);
   }
 
   async createRow(tableType: TableType, data: Record<string, any>) {

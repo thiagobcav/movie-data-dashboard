@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Info } from 'lucide-react';
 
 const ConfigPanel: React.FC = () => {
   const config = useConfig();
@@ -30,9 +29,7 @@ const ConfigPanel: React.FC = () => {
 
   const handleSaveApiConfig = () => {
     if (showMixedContentWarning) {
-      toast.info('URL HTTP detectada. Um serviço de proxy será usado para todas as requisições.', {
-        description: 'O proxy agora suporta todos os métodos HTTP: GET, POST, PATCH, DELETE.'
-      });
+      toast.info('URL HTTP detectada. Um serviço de proxy será usado para todas as requisições.');
     }
     
     config.updateApiToken(apiToken);
@@ -94,28 +91,10 @@ const ConfigPanel: React.FC = () => {
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder="URL base da API Baserow"
-                  className={showMixedContentWarning ? "border-amber-300" : ""}
                 />
                 <p className="text-sm text-muted-foreground">
                   Por padrão: https://api.baserow.io/api
                 </p>
-                
-                {showMixedContentWarning && (
-                  <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm">
-                    <div className="flex items-start gap-2">
-                      <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium">Usando proxy para contornar restrições</p>
-                        <p className="mt-1">
-                          Você está configurando uma API HTTP em um site HTTPS. Um serviço de proxy será usado para todas as requisições.
-                        </p>
-                        <p className="mt-1">
-                          O serviço de proxy agora suporta todos os métodos HTTP (GET, POST, PATCH, DELETE).
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
               
               <Button onClick={handleSaveApiConfig}>

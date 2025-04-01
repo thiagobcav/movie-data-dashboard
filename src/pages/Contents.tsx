@@ -115,7 +115,7 @@ const Contents = () => {
         tableIds: config.tableIds,
       });
 
-      const response = await api.getTableRows('contents', currentPage, pageSize);
+      const response = await api.getTableRows('contents', currentPage, pageSize, 'order_by=-Data');
       
       setData(response.results || []);
       setTotalPages(Math.ceil((response.count || 0) / pageSize));
