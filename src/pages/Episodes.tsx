@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
 import CrudDialog from '@/components/dashboard/CrudDialog';
@@ -7,6 +8,7 @@ import { useConfig } from '@/context/ConfigContext';
 import { createApi } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
 import { convertJsonToArray } from '@/utils/formatters';
+import { checkAndNotifyDuplicates } from '@/utils/duplicateChecker';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +30,8 @@ const Episodes = () => {
     Episódio: 1
   });
   const pageSize = 10;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
   const columns = [
     { key: 'Nome', label: 'Nome', sortable: true },
@@ -50,6 +54,7 @@ const Episodes = () => {
       key: 'Temporada', 
       label: 'Temporada',
       sortable: true,
+      dataType: 'number',
       render: (value: number) => (
         <Badge variant="outline">
           T{value || 0}
@@ -60,6 +65,7 @@ const Episodes = () => {
       key: 'Episódio', 
       label: 'Episódio',
       sortable: true,
+      dataType: 'number',
       render: (value: number) => (
         <Badge variant="outline">
           E{value || 0}
@@ -70,14 +76,22 @@ const Episodes = () => {
       key: 'Histórico', 
       label: 'Visualizações',
       sortable: true,
+      dataType: 'number',
       render: (value: string) => {
         const historico = convertJsonToArray(value);
         return historico.length;
       }
     },
+    {
+      key: 'Data',
+      label: 'Data',
+      sortable: true,
+      dataType: 'date',
+      render: (value: string) => value ? new Date(value).toLocaleDateString('pt-BR') : '-'
+    },
   ];
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (page = currentPage, search = searchTerm, sort = sortConfig) => {
     if (!config.apiToken || !config.tableIds.episodes) {
       setIsLoading(false);
       return;
@@ -92,21 +106,55 @@ const Episodes = () => {
         tableIds: config.tableIds,
       });
 
-      const response = await api.getTableRows('episodes', currentPage, pageSize, 'order_by=-Data');
+      // Construir parâmetros de ordenação e pesquisa
+      let orderBy = 'order_by=-Data';
+      if (sort) {
+        const direction = sort.direction === 'asc' ? '' : '-';
+        orderBy = `order_by=${direction}${sort.key}`;
+      }
+
+      // Adicionar parâmetro de pesquisa se necessário
+      let searchParam = '';
+      if (search) {
+        searchParam = `&search=${encodeURIComponent(search)}`;
+      }
+
+      const response = await api.getTableRows('episodes', page, pageSize, `${orderBy}${searchParam}`);
       
       setData(response.results || []);
       setTotalPages(Math.ceil((response.count || 0) / pageSize));
+      
+      // Verificar duplicatas
+      checkAndNotifyDuplicates(response.results || [], 'Nome', 'episódio');
+      
     } catch (error) {
       console.error('Error fetching episodes:', error);
       toast.error('Erro ao carregar os episódios');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [config.apiToken, config.baseUrl, config.tableIds, currentPage, searchTerm, sortConfig]);
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, config.apiToken, config.baseUrl, config.tableIds.episodes]);
+  }, [fetchData]);
+
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    setCurrentPage(1); // Voltar para a primeira página ao pesquisar
+    fetchData(1, term, sortConfig);
+  };
+
+  const handleSort = (key: string, direction: 'asc' | 'desc') => {
+    const newSortConfig = { key, direction };
+    setSortConfig(newSortConfig);
+    fetchData(currentPage, searchTerm, newSortConfig);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchData(page, searchTerm, sortConfig);
+  };
 
   const handleView = (row: any) => {
     const historico = convertJsonToArray(row.Histórico);
@@ -175,6 +223,27 @@ const Episodes = () => {
         baseUrl: config.baseUrl,
         tableIds: config.tableIds,
       });
+
+      // Verificar se já existe um episódio com o mesmo nome
+      if (!currentEpisode) {
+        // Só verificar duplicatas para novos episódios
+        const searchResponse = await api.getTableRows(
+          'episodes', 
+          1, 
+          10, 
+          `search=${encodeURIComponent(formData.Nome)}`
+        );
+        
+        const exactMatches = (searchResponse.results || []).filter(
+          item => item.Nome.toLowerCase() === formData.Nome.toLowerCase() &&
+                 item.Temporada === formData.Temporada &&
+                 item.Episódio === formData.Episódio
+        );
+        
+        if (exactMatches.length > 0) {
+          toast.warning('Atenção: já existe um episódio com este nome, temporada e número');
+        }
+      }
 
       if (currentEpisode) {
         // Update
@@ -245,11 +314,13 @@ const Episodes = () => {
             isLoading={isLoading}
             currentPage={currentPage}
             totalPages={totalPages}
-            onPageChange={setCurrentPage}
+            onPageChange={handlePageChange}
             onView={handleView}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onAdd={handleAdd}
+            onSearch={handleSearch}
+            onSort={handleSort}
           />
         )}
       </div>

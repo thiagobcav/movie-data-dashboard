@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -10,7 +10,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { ArrowLeft, ArrowRight, Search, Edit, Trash, Eye, Plus, ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Search, Edit, Trash, Eye, Plus, ArrowDown, ArrowUp, Clock } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +27,7 @@ interface DataTableProps {
     label: string;
     render?: (value: any, row: any) => React.ReactNode;
     sortable?: boolean;
+    dataType?: 'text' | 'number' | 'date';
   }[];
   onView?: (row: any) => void;
   onEdit?: (row: any) => void;
@@ -36,6 +37,8 @@ interface DataTableProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  onSearch?: (term: string) => void;
+  onSort?: (key: string, direction: 'asc' | 'desc') => void;
 }
 
 const DataTable: React.FC<DataTableProps> = ({
@@ -49,15 +52,23 @@ const DataTable: React.FC<DataTableProps> = ({
   currentPage,
   totalPages,
   onPageChange,
+  onSearch,
+  onSort,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: 'asc' | 'desc';
   } | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // Filter data based on search term
-  const filteredData = searchTerm
+  // Determinar quais colunas têm datas
+  const dateColumns = columns
+    .filter(column => column.dataType === 'date' && column.sortable !== false)
+    .map(column => column.key);
+
+  // Filtrar dados localmente quando não há callback onSearch
+  const filteredData = !onSearch && searchTerm
     ? data.filter((row) =>
         columns.some((column) => {
           const value = row[column.key];
@@ -69,9 +80,9 @@ const DataTable: React.FC<DataTableProps> = ({
       )
     : data;
 
-  // Sort data based on sort configuration
+  // Ordenar dados localmente quando não há callback onSort
   const sortedData = React.useMemo(() => {
-    if (!sortConfig) return filteredData;
+    if (!sortConfig || onSort) return filteredData;
 
     return [...filteredData].sort((a, b) => {
       const valueA = a[sortConfig.key];
@@ -81,12 +92,26 @@ const DataTable: React.FC<DataTableProps> = ({
       
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
       
-      if (typeof valueA === 'string' && typeof valueB === 'string') {
-        return valueA.localeCompare(valueB) * direction;
-      }
+      // Determinar o tipo de coluna para ordenação
+      const column = columns.find(col => col.key === sortConfig.key);
+      const dataType = column?.dataType || 'text';
       
-      if (valueA instanceof Date && valueB instanceof Date) {
+      if (dataType === 'date') {
+        // Ordenar por data
+        const dateA = valueA ? new Date(valueA).getTime() : 0;
+        const dateB = valueB ? new Date(valueB).getTime() : 0;
+        return (dateA - dateB) * direction;
+      } else if (typeof valueA === 'string' && typeof valueB === 'string') {
+        // Ordenar strings
+        return valueA.localeCompare(valueB) * direction;
+      } else if (valueA instanceof Date && valueB instanceof Date) {
+        // Ordenar objetos Date
         return (valueA.getTime() - valueB.getTime()) * direction;
+      } else if (dataType === 'number') {
+        // Ordenar números
+        const numA = Number(valueA) || 0;
+        const numB = Number(valueB) || 0;
+        return (numA - numB) * direction;
       }
       
       if (valueA === null || valueA === undefined) return 1 * direction;
@@ -94,21 +119,48 @@ const DataTable: React.FC<DataTableProps> = ({
       
       return (valueA > valueB ? 1 : -1) * direction;
     });
-  }, [filteredData, sortConfig]);
+  }, [filteredData, sortConfig, columns, onSort]);
 
   const handleSort = (key: string) => {
     setSortConfig((prevSortConfig) => {
-      if (prevSortConfig && prevSortConfig.key === key) {
-        // Toggle direction if same key
-        return {
-          key,
-          direction: prevSortConfig.direction === 'asc' ? 'desc' : 'asc',
-        };
+      const newConfig = {
+        key,
+        direction: prevSortConfig && prevSortConfig.key === key && prevSortConfig.direction === 'asc' ? 'desc' : 'asc',
+      };
+      
+      // Se existe callback de ordenação externa, chamar
+      if (onSort) {
+        onSort(newConfig.key, newConfig.direction);
       }
-      // Default to ascending for new key
-      return { key, direction: 'asc' };
+      
+      return newConfig;
     });
   };
+  
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    
+    // Se existe callback de pesquisa externa, usar debounce
+    if (onSearch) {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      
+      setSearchTimeout(
+        setTimeout(() => {
+          onSearch(term);
+        }, 500)
+      );
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [searchTimeout]);
 
   return (
     <div className="w-full space-y-4 animate-fade-in">
@@ -118,7 +170,7 @@ const DataTable: React.FC<DataTableProps> = ({
           <Input
             placeholder="Buscar..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="pl-8"
           />
         </div>
@@ -138,7 +190,9 @@ const DataTable: React.FC<DataTableProps> = ({
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Opções de ordenação</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {columns.filter(column => column.sortable !== false).map((column) => (
+              
+              {/* Seção de colunas de texto */}
+              {columns.filter(column => column.sortable !== false && !dateColumns.includes(column.key)).map((column) => (
                 <DropdownMenuItem 
                   key={column.key} 
                   onClick={() => handleSort(column.key)}
@@ -152,6 +206,58 @@ const DataTable: React.FC<DataTableProps> = ({
                   )}
                 </DropdownMenuItem>
               ))}
+              
+              {/* Seção de colunas de data se houver alguma */}
+              {dateColumns.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="flex items-center gap-1 text-xs">
+                    <Clock size={14} /> Por data
+                  </DropdownMenuLabel>
+                  
+                  {dateColumns.map(key => {
+                    const column = columns.find(col => col.key === key);
+                    if (!column) return null;
+                    
+                    return (
+                      <DropdownMenuItem 
+                        key={`date-${key}`}
+                        onClick={() => handleSort(key)}
+                        className="flex justify-between"
+                      >
+                        <span>{column.label}</span>
+                        {sortConfig?.key === key && (
+                          sortConfig.direction === 'asc' 
+                            ? <ArrowUp size={16} /> 
+                            : <ArrowDown size={16} />
+                        )}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
+              
+              {/* Opção para adicionar "Data" genérica quando não existe coluna de data */}
+              {dateColumns.length === 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="flex items-center gap-1 text-xs">
+                    <Clock size={14} /> Por data
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => handleSort("Data")}
+                    className="flex justify-between"
+                  >
+                    <span>Data de criação</span>
+                    {sortConfig?.key === "Data" && (
+                      sortConfig.direction === 'asc' 
+                        ? <ArrowUp size={16} /> 
+                        : <ArrowDown size={16} />
+                    )}
+                  </DropdownMenuItem>
+                </>
+              )}
+              
               {sortConfig && (
                 <>
                   <DropdownMenuSeparator />

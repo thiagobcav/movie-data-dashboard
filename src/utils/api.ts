@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 
 export type TableType = 
@@ -77,8 +78,6 @@ export class BaserowApi {
       // Direct request (no proxy needed)
       else {
         console.log('Enviando requisição direta para:', directUrl);
-        console.log('Método:', options.method || 'GET');
-        console.log('Corpo:', options.body ? JSON.parse(options.body as string) : 'Sem corpo');
         
         const defaultOptions: RequestInit = {
           headers: {
@@ -95,8 +94,6 @@ export class BaserowApi {
             ...(options.headers || {}),
           },
         });
-
-        console.log('Status da resposta:', response.status);
         
         if (!response.ok) {
           const contentType = response.headers.get('content-type');
@@ -154,7 +151,15 @@ export class BaserowApi {
     }
   }
 
-  async getTableRows(tableType: TableType, page = 1, pageSize = 20, orderBy?: string) {
+  /**
+   * Obtém linhas de uma tabela com suporte para paginação, ordenação e pesquisa
+   * @param tableType Tipo da tabela
+   * @param page Número da página (começa em 1)
+   * @param pageSize Tamanho da página
+   * @param queryParams Parâmetros adicionais (order_by, search)
+   * @returns Resposta da API
+   */
+  async getTableRows(tableType: TableType, page = 1, pageSize = 20, queryParams?: string) {
     const tableId = this.tableIds[tableType];
     
     if (!tableId) {
@@ -164,9 +169,16 @@ export class BaserowApi {
 
     let endpoint = `database/rows/table/${tableId}/?user_field_names=true&page=${page}&size=${pageSize}`;
     
-    // Add order_by parameter if provided
-    if (orderBy) {
-      endpoint += `&${orderBy}`;
+    // Add query parameters if provided
+    if (queryParams) {
+      // Verifica se os parâmetros já começam com & (para não duplicar)
+      if (queryParams.startsWith('&')) {
+        endpoint += queryParams;
+      } else if (queryParams.startsWith('order_by') || queryParams.startsWith('search')) {
+        endpoint += `&${queryParams}`;
+      } else {
+        endpoint += `&${queryParams}`;
+      }
     }
 
     return this.request(endpoint);

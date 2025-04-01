@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
 import CrudDialog from '@/components/dashboard/CrudDialog';
@@ -11,6 +12,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { checkAndNotifyDuplicates } from '@/utils/duplicateChecker';
 import {
   Select,
   SelectContent,
@@ -41,12 +43,15 @@ const Contents = () => {
     Temporadas: 0
   });
   const pageSize = 10;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
   const columns = [
-    { key: 'Nome', label: 'Nome' },
+    { key: 'Nome', label: 'Nome', sortable: true },
     { 
       key: 'Capa', 
       label: 'Capa',
+      sortable: false,
       render: (value: string) => value ? (
         <div className="w-12 h-12 rounded overflow-hidden bg-gray-100">
           <img 
@@ -61,6 +66,7 @@ const Contents = () => {
     { 
       key: 'Categoria', 
       label: 'Categorias',
+      sortable: true,
       render: (value: string) => (
         <div className="flex flex-wrap gap-1">
           {formatCategories(value).map((category, index) => (
@@ -74,6 +80,7 @@ const Contents = () => {
     { 
       key: 'Tipo', 
       label: 'Tipo',
+      sortable: true,
       render: (value: string) => {
         const colorMap: Record<string, string> = {
           'Filme': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
@@ -91,16 +98,27 @@ const Contents = () => {
     { 
       key: 'Views', 
       label: 'Views',
+      sortable: true,
+      dataType: 'number',
       render: (value: number) => value ? value.toLocaleString() : '0'
     },
     { 
       key: 'Temporadas', 
       label: 'Temporadas',
+      sortable: true,
+      dataType: 'number',
       render: (value: number) => value || '0'
+    },
+    {
+      key: 'Data',
+      label: 'Data',
+      sortable: true,
+      dataType: 'date',
+      render: (value: string) => value ? new Date(value).toLocaleDateString('pt-BR') : '-'
     },
   ];
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (page = currentPage, search = searchTerm, sort = sortConfig) => {
     if (!config.apiToken || !config.tableIds.contents) {
       setIsLoading(false);
       return;
@@ -115,21 +133,55 @@ const Contents = () => {
         tableIds: config.tableIds,
       });
 
-      const response = await api.getTableRows('contents', currentPage, pageSize, 'order_by=-Data');
+      // Construir parâmetros de ordenação e pesquisa
+      let orderBy = 'order_by=-Data';
+      if (sort) {
+        const direction = sort.direction === 'asc' ? '' : '-';
+        orderBy = `order_by=${direction}${sort.key}`;
+      }
+
+      // Adicionar parâmetro de pesquisa se necessário
+      let searchParam = '';
+      if (search) {
+        searchParam = `&search=${encodeURIComponent(search)}`;
+      }
+
+      const response = await api.getTableRows('contents', page, pageSize, `${orderBy}${searchParam}`);
       
       setData(response.results || []);
       setTotalPages(Math.ceil((response.count || 0) / pageSize));
+      
+      // Verificar duplicatas
+      checkAndNotifyDuplicates(response.results || [], 'Nome', 'conteúdo');
+      
     } catch (error) {
       console.error('Error fetching contents:', error);
       toast.error('Erro ao carregar os conteúdos');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [config.apiToken, config.baseUrl, config.tableIds, currentPage, searchTerm, sortConfig]);
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, config.apiToken, config.baseUrl, config.tableIds.contents]);
+  }, [fetchData]);
+
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    setCurrentPage(1); // Voltar para a primeira página ao pesquisar
+    fetchData(1, term, sortConfig);
+  };
+
+  const handleSort = (key: string, direction: 'asc' | 'desc') => {
+    const newSortConfig = { key, direction };
+    setSortConfig(newSortConfig);
+    fetchData(currentPage, searchTerm, newSortConfig);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchData(page, searchTerm, sortConfig);
+  };
 
   const handleView = (row: any) => {
     toast.info(
@@ -203,6 +255,25 @@ const Contents = () => {
         tableIds: config.tableIds,
       });
 
+      // Verificar se já existe um conteúdo com o mesmo nome
+      if (!currentContent) {
+        // Só verificar duplicatas para novos conteúdos
+        const searchResponse = await api.getTableRows(
+          'contents', 
+          1, 
+          10, 
+          `search=${encodeURIComponent(formData.Nome)}`
+        );
+        
+        const exactMatches = (searchResponse.results || []).filter(
+          item => item.Nome.toLowerCase() === formData.Nome.toLowerCase()
+        );
+        
+        if (exactMatches.length > 0) {
+          toast.warning('Atenção: já existe um conteúdo com este nome');
+        }
+      }
+
       if (currentContent) {
         await api.updateRow('contents', currentContent.id, formData);
         toast.success('Conteúdo atualizado com sucesso');
@@ -212,7 +283,7 @@ const Contents = () => {
       }
 
       setIsDialogOpen(false);
-      fetchData();
+      fetchData(); // Recarregar dados
     } catch (error) {
       console.error('Error saving content:', error);
       toast.error('Erro ao salvar o conteúdo');
@@ -270,11 +341,13 @@ const Contents = () => {
             isLoading={isLoading}
             currentPage={currentPage}
             totalPages={totalPages}
-            onPageChange={setCurrentPage}
+            onPageChange={handlePageChange}
             onView={handleView}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onAdd={handleAdd}
+            onSearch={handleSearch}
+            onSort={handleSort}
           />
         )}
       </div>
