@@ -13,9 +13,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Episodes = () => {
   const config = useConfig();
+  const navigate = useNavigate();
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);

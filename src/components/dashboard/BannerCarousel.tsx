@@ -8,6 +8,7 @@ import {
   CarouselPrevious 
 } from "@/components/ui/carousel";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { useCallback } from 'react';
 
 interface BannerCarouselProps {
   banners: Array<{
@@ -19,18 +20,37 @@ interface BannerCarouselProps {
 }
 
 const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [api, setApi] = useState<any>(null);
+  const [current, setCurrent] = useState(0);
+  
+  const handleSelect = useCallback(() => {
+    if (!api) return;
+    setCurrent(api.selectedScrollSnap());
+  }, [api]);
+
+  // Set up the carousel API
+  useEffect(() => {
+    if (!api) return;
+    
+    // Handle scrolling and sliding events
+    api.on("select", handleSelect);
+    
+    // Clean up
+    return () => {
+      api.off("select", handleSelect);
+    };
+  }, [api, handleSelect]);
   
   // Auto-rotation for the carousel
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (!api || banners.length <= 1) return;
     
     const interval = setInterval(() => {
-      setActiveIndex((prevIndex) => (prevIndex + 1) % banners.length);
+      api.scrollNext();
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [api, banners.length]);
 
   if (!banners || banners.length === 0) {
     return null;
@@ -43,8 +63,7 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
         loop: true,
       }}
       className="w-full"
-      setActiveIndex={setActiveIndex}
-      index={activeIndex}
+      setApi={setApi}
     >
       <CarouselContent>
         {banners.map((banner, index) => (
