@@ -32,6 +32,38 @@ const DuplicatesCheck = () => {
   const tableType = type === 'episodes' ? 'episodes' : 'contents';
   const pageTitle = type === 'episodes' ? 'Episódios' : 'Conteúdos';
 
+  const fetchAllItems = async (api: any) => {
+    let allItems: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    const PAGE_SIZE = 100; // Smaller page size to avoid limits
+    
+    while (hasMore) {
+      try {
+        const response = await api.getTableRows(tableType, page, PAGE_SIZE);
+        const items = response.results || [];
+        
+        if (items.length === 0) {
+          hasMore = false;
+        } else {
+          allItems = [...allItems, ...items];
+          page++;
+        }
+        
+        // If we've fetched at least 1000 items or there's no next page, stop
+        if (response.next === null || allItems.length >= 1000) {
+          hasMore = false;
+        }
+      } catch (error) {
+        console.error(`Error fetching page ${page}:`, error);
+        toast.error(`Erro ao buscar página ${page} de itens`);
+        hasMore = false;
+      }
+    }
+    
+    return allItems;
+  };
+
   const checkDuplicates = useCallback(async () => {
     if (!config.apiToken || !config.tableIds[tableType as keyof typeof config.tableIds]) {
       toast.error('Configure o token da API e o ID da tabela');
@@ -47,9 +79,15 @@ const DuplicatesCheck = () => {
         tableIds: config.tableIds,
       });
 
-      // Get all items (or at least a larger amount)
-      const response = await api.getTableRows(tableType, 1, 1000);
-      const items = response.results || [];
+      // Get all items with pagination to avoid limits
+      const items = await fetchAllItems(api);
+      
+      if (items.length === 0) {
+        setDuplicates([]);
+        setIsLoading(false);
+        toast.success(`Não foram encontrados ${pageTitle.toLowerCase()}`);
+        return;
+      }
       
       // Group by appropriate key based on type
       const duplicatesMap = new Map();

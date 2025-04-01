@@ -1,19 +1,10 @@
 
-import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  Film, 
-  Tv, 
-  Image, 
-  Bookmark, 
-  Users, 
-  Layers, 
-  Server, 
-  Settings, 
-  Menu, 
-  X,
-  Home
-} from 'lucide-react';
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { X, Menu, Home, Box, FilmIcon, LayoutGrid, Users, Settings, FileWarning, Upload, ImageIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SidebarProps {
   isMobile: boolean;
@@ -23,77 +14,172 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
   const location = useLocation();
+  const { user } = useAuth();
   
-  const sidebarItems = [
-    { path: '/', icon: <Home size={20} />, label: 'Dashboard' },
-    { path: '/contents', icon: <Film size={20} />, label: 'Conteúdos' },
-    { path: '/episodes', icon: <Tv size={20} />, label: 'Episódios' },
-    { path: '/banners', icon: <Image size={20} />, label: 'Banners' },
-    { path: '/categories', icon: <Bookmark size={20} />, label: 'Categorias' },
-    { path: '/users', icon: <Users size={20} />, label: 'Usuários' },
-    { path: '/sessions', icon: <Layers size={20} />, label: 'Sessões' },
-    { path: '/platforms', icon: <Server size={20} />, label: 'Plataformas' },
-    { path: '/settings', icon: <Settings size={20} />, label: 'Configurações' },
+  // Check if user has premium access
+  const isPremium = user?.Premium === true;
+
+  const navItems = [
+    { 
+      href: '/', 
+      label: 'Dashboard', 
+      icon: <Home size={18} />
+    },
+    { 
+      href: '/contents', 
+      label: 'Conteúdos', 
+      icon: <FilmIcon size={18} />
+    },
+    { 
+      href: '/episodes', 
+      label: 'Episódios', 
+      icon: <Box size={18} /> 
+    },
+    { 
+      href: '/categories', 
+      label: 'Categorias', 
+      icon: <LayoutGrid size={18} /> 
+    },
+    { 
+      href: '/users', 
+      label: 'Usuários', 
+      icon: <Users size={18} /> 
+    },
+    { 
+      href: '/promotionals', 
+      label: 'Promocionais', 
+      icon: <ImageIcon size={18} /> 
+    },
+    {
+      href: '/bulk-upload',
+      label: 'Upload em Massa',
+      icon: <Upload size={18} />,
+      isPremium: true
+    },
+    { 
+      href: '/settings', 
+      label: 'Configurações', 
+      icon: <Settings size={18} /> 
+    },
   ];
+
+  const duplicateItems = [
+    {
+      href: '/duplicates/contents',
+      label: 'Conteúdos Duplicados',
+      icon: <FileWarning size={18} />
+    },
+    {
+      href: '/duplicates/episodes',
+      label: 'Episódios Duplicados',
+      icon: <FileWarning size={18} />
+    }
+  ];
+
+  // Classes
+  const sidebarClasses = cn(
+    "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 ease-in-out",
+    isMobile && !isOpen ? "-translate-x-full" : "translate-x-0"
+  );
+  
+  const overlayClasses = cn(
+    "fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300",
+    isMobile && isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+  );
+  
+  const navItemClasses = "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700";
+  const activeItemClasses = "bg-gray-100 dark:bg-gray-700 text-primary";
 
   return (
     <>
-      {isMobile && (
-        <button
-          onClick={onToggle}
-          className="fixed top-4 left-4 z-50 p-2 rounded-md bg-primary text-white"
-          aria-label="Toggle Menu"
-        >
-          {isOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      )}
-
-      <div
-        className={`
-          fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-900 shadow-lg transform transition-transform duration-300 ease-in-out 
-          ${isMobile ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
-          ${!isMobile && 'relative'}
-        `}
-      >
-        <div className="flex flex-col h-full">
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-            <h2 className="text-xl font-bold text-center">MediaAdmin</h2>
-          </div>
-
-          <nav className="flex-1 px-4 py-6 overflow-y-auto">
-            <ul className="space-y-2">
-              {sidebarItems.map((item) => (
-                <li key={item.path}>
-                  <NavLink
-                    to={item.path}
-                    className={({ isActive }) => `
-                      sidebar-item ${isActive ? 'active' : ''}
-                    `}
-                    onClick={isMobile ? onToggle : undefined}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <div className="p-4 border-t border-gray-100 dark:border-gray-800">
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              © {new Date().getFullYear()} MediaAdmin
+      {/* Mobile Overlay */}
+      <div 
+        className={overlayClasses} 
+        onClick={onToggle}
+      />
+      
+      {/* Sidebar */}
+      <aside className={sidebarClasses}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-semibold">Painel Admin</h2>
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={onToggle}>
+              <X size={20} />
+            </Button>
+          )}
+        </div>
+        
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+          {navItems.map((item) => {
+            // Skip premium items if user doesn't have premium
+            if (item.isPremium && !isPremium) return null;
+            
+            return (
+              <Link 
+                key={item.href} 
+                to={item.href}
+                className={cn(
+                  navItemClasses,
+                  location.pathname === item.href && activeItemClasses
+                )}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {item.isPremium && (
+                  <span className="ml-auto text-xs bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full">
+                    Premium
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+          
+          <div className="pt-2 pb-1">
+            <p className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+              Manutenção
             </p>
           </div>
+          
+          {duplicateItems.map((item) => (
+            <Link 
+              key={item.href} 
+              to={item.href}
+              className={cn(
+                navItemClasses,
+                location.pathname === item.href && activeItemClasses
+              )}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+        
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
+              {user?.Nome?.charAt(0) || 'U'}
+            </div>
+            <div>
+              <p className="text-sm font-medium truncate">{user?.Nome || 'Usuário'}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {user?.Premium ? 'Premium' : 'Padrão'}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Overlay for mobile */}
-      {isMobile && isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30"
+      </aside>
+      
+      {/* Mobile toggle button */}
+      {isMobile && !isOpen && (
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className="fixed top-4 left-4 z-50 lg:hidden"
           onClick={onToggle}
-          aria-hidden="true"
-        />
+        >
+          <Menu size={20} />
+        </Button>
       )}
     </>
   );

@@ -17,6 +17,8 @@ const Users = lazy(() => import('./pages/Users'));
 const Settings = lazy(() => import('./pages/Settings'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const DuplicatesCheck = lazy(() => import('./pages/DuplicatesCheck'));
+const BulkUpload = lazy(() => import('./pages/BulkUpload'));
+const Promotionals = lazy(() => import('./pages/Promotionals'));
 
 function App() {
   return (
@@ -33,6 +35,8 @@ function App() {
               <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/duplicates/:type" element={<ProtectedRoute><DuplicatesCheck /></ProtectedRoute>} />
+              <Route path="/bulk-upload" element={<ProtectedRoute><BulkUpload /></ProtectedRoute>} />
+              <Route path="/promotionals" element={<ProtectedRoute><Promotionals /></ProtectedRoute>} />
               <Route path="/404" element={<NotFound />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
