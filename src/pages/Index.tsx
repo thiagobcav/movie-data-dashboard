@@ -11,6 +11,9 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import BannerCarousel from '@/components/dashboard/BannerCarousel';
 
+const BANNERS_API_URL = "https://api.baserow.io/api/database/rows/table/491626/?user_field_names=true";
+const BANNERS_API_TOKEN = "9HJjNCWkRnJDxwYZHLYG9sHgLEu2Pbar";
+
 const Index = () => {
   const navigate = useNavigate();
   const config = useConfig();
@@ -26,6 +29,27 @@ const Index = () => {
     platforms: 0,
   });
 
+  const fetchBanners = async () => {
+    try {
+      const response = await fetch(BANNERS_API_URL, {
+        headers: {
+          'Authorization': `Token ${BANNERS_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching banners: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setBanners(data.results || []);
+    } catch (error) {
+      console.error('Error fetching banners:', error);
+      toast.error('Erro ao carregar banners promocionais');
+    }
+  };
+
   const fetchStats = async () => {
     if (!config.apiToken) {
       setIsLoading(false);
@@ -40,16 +64,6 @@ const Index = () => {
     });
 
     try {
-      // Fetch banners
-      if (config.tableIds.banners) {
-        try {
-          const bannersResponse = await api.getTableRows('banners', 1, 10);
-          setBanners(bannersResponse.results || []);
-        } catch (error) {
-          console.error('Error fetching banners:', error);
-        }
-      }
-
       // Fetch stats
       const statsPromises = Object.keys(stats).map(async (tableType) => {
         if (!config.tableIds[tableType as keyof typeof config.tableIds]) {
@@ -86,6 +100,10 @@ const Index = () => {
   };
 
   useEffect(() => {
+    // Load banners from the dedicated API
+    fetchBanners();
+    
+    // Load stats from the user's configured API
     fetchStats();
   }, [config.apiToken, config.baseUrl, config.tableIds]);
 
