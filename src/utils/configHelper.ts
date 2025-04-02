@@ -14,6 +14,6 @@ export const useConfiguredApi = () => {
   return {
     api,
     config,
-    isConfigured: !!config.apiToken
+    isConfigured: !!config.apiToken && Object.values(config.tableIds).some(id => !!id)
   };
 };
