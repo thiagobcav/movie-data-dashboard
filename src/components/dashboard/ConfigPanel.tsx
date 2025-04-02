@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useConfig } from '@/context/ConfigContext';
+import { useConfig, TableIds } from '@/context/ConfigContext';
 import { encrypt, decrypt } from '@/utils/encryption';
 import { toast } from 'sonner';
 import { LockIcon, RefreshCcw } from 'lucide-react';
@@ -28,7 +27,7 @@ const ConfigPanel = () => {
   const { user } = useAuth();
   const [apiToken, setApiToken] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [tableIds, setTableIds] = useState<Record<string, string>>({
+  const [tableIds, setTableIds] = useState<TableIds>({
     contents: '',
     episodes: '',
     banners: '',
@@ -51,13 +50,29 @@ const ConfigPanel = () => {
         
         setApiToken(parsedConfig.apiToken || '');
         setBaseUrl(parsedConfig.baseUrl || '');
-        setTableIds(parsedConfig.tableIds || {});
+        setTableIds(parsedConfig.tableIds || {
+          contents: '',
+          episodes: '',
+          banners: '',
+          categories: '',
+          users: '',
+          sessions: '',
+          platforms: '',
+        });
         
         // Update the global config context
         updateConfig({
           apiToken: parsedConfig.apiToken || '',
           baseUrl: parsedConfig.baseUrl || '',
-          tableIds: parsedConfig.tableIds || {},
+          tableIds: parsedConfig.tableIds || {
+            contents: '',
+            episodes: '',
+            banners: '',
+            categories: '',
+            users: '',
+            sessions: '',
+            platforms: '',
+          },
         });
       } catch (error) {
         console.error('Failed to parse stored configuration:', error);
@@ -83,7 +98,7 @@ const ConfigPanel = () => {
   };
 
   const handleTableIdChange = (
-    key: string,
+    key: keyof TableIds,
     value: string
   ) => {
     setTableIds((prev) => ({
@@ -117,11 +132,11 @@ const ConfigPanel = () => {
   }, [activeTab]);
 
   // Get background color for log type
-  const getLogBadgeVariant = (type: LogEntry['type']) => {
+  const getLogBadgeVariant = (type: LogEntry['type']): "default" | "destructive" | "outline" | "secondary" | "success" | "warning" => {
     switch (type) {
       case 'error': return 'destructive';
-      case 'warning': return 'warning';
-      case 'success': return 'success';
+      case 'warning': return 'warning' as any;
+      case 'success': return 'success' as any;
       default: return 'secondary';
     }
   };

@@ -95,7 +95,7 @@ const Episodes = () => {
   ];
 
   const fetchData = useCallback(async (page = currentPage, search = searchTerm, sort = sortConfig) => {
-    if (!config.apiToken || !config.tableIds.episodes) {
+    if (!config.config.apiToken || !config.config.tableIds.episodes) {
       setIsLoading(false);
       return;
     }
@@ -104,23 +104,29 @@ const Episodes = () => {
 
     try {
       const api = createApi({
-        apiToken: config.apiToken,
-        baseUrl: config.baseUrl,
-        tableIds: config.tableIds,
+        apiToken: config.config.apiToken,
+        baseUrl: config.config.baseUrl,
+        tableIds: config.config.tableIds,
       });
 
-      let orderBy = 'order_by=-Data';
+      let response;
+      
       if (sort) {
         const direction = sort.direction === 'asc' ? '' : '-';
-        orderBy = `order_by=${direction}${sort.key}`;
+        const orderBy = `order_by=${direction}${sort.key}`;
+        
+        if (search) {
+          response = await api.getTableRows('episodes', page, pageSize, `${orderBy}&search=${encodeURIComponent(search)}`);
+        } else {
+          response = await api.getTableRows('episodes', page, pageSize, orderBy);
+        }
+      } else {
+        if (search) {
+          response = await api.searchTable('episodes', search, page, pageSize);
+        } else {
+          response = await api.getTableRows('episodes', page, pageSize);
+        }
       }
-
-      let searchParam = '';
-      if (search) {
-        searchParam = `&search=${encodeURIComponent(search)}`;
-      }
-
-      const response = await api.getTableRows('episodes', page, pageSize, `${orderBy}${searchParam}`);
       
       setData(response.results || []);
       setTotalPages(Math.ceil((response.count || 0) / pageSize));
@@ -133,7 +139,7 @@ const Episodes = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [config.apiToken, config.baseUrl, config.tableIds, currentPage, searchTerm, sortConfig]);
+  }, [config.config.apiToken, config.config.baseUrl, config.config.tableIds, currentPage, searchTerm, sortConfig, pageSize]);
 
   useEffect(() => {
     fetchData();
@@ -210,7 +216,7 @@ const Episodes = () => {
       return;
     }
 
-    if (!config.apiToken || !config.tableIds.episodes) {
+    if (!config.config.apiToken || !config.config.tableIds.episodes) {
       toast.error('Configure o token da API e o ID da tabela');
       return;
     }
@@ -219,17 +225,17 @@ const Episodes = () => {
 
     try {
       const api = createApi({
-        apiToken: config.apiToken,
-        baseUrl: config.baseUrl,
-        tableIds: config.tableIds,
+        apiToken: config.config.apiToken,
+        baseUrl: config.config.baseUrl,
+        tableIds: config.config.tableIds,
       });
 
       if (!currentEpisode) {
-        const searchResponse = await api.getTableRows(
+        const searchResponse = await api.searchTable(
           'episodes', 
+          formData.Nome,
           1, 
-          10, 
-          `search=${encodeURIComponent(formData.Nome)}`
+          10
         );
         
         const exactMatches = (searchResponse.results || []).filter(
@@ -262,7 +268,7 @@ const Episodes = () => {
   };
 
   const handleConfirmDelete = async () => {
-    if (!currentEpisode || !config.apiToken || !config.tableIds.episodes) {
+    if (!currentEpisode || !config.config.apiToken || !config.config.tableIds.episodes) {
       return;
     }
 
@@ -270,9 +276,9 @@ const Episodes = () => {
 
     try {
       const api = createApi({
-        apiToken: config.apiToken,
-        baseUrl: config.baseUrl,
-        tableIds: config.tableIds,
+        apiToken: config.config.apiToken,
+        baseUrl: config.config.baseUrl,
+        tableIds: config.config.tableIds,
       });
 
       await api.deleteRow('episodes', currentEpisode.id);
@@ -288,7 +294,7 @@ const Episodes = () => {
   };
 
   const checkSeasonEpisodeDuplicates = useCallback(async () => {
-    if (!config.apiToken || !config.tableIds.episodes) {
+    if (!config.config.apiToken || !config.config.tableIds.episodes) {
       toast.error('Configure o token da API e o ID da tabela');
       return [];
     }
@@ -296,9 +302,9 @@ const Episodes = () => {
     setIsLoading(true);
     try {
       const api = createApi({
-        apiToken: config.apiToken,
-        baseUrl: config.baseUrl,
-        tableIds: config.tableIds,
+        apiToken: config.config.apiToken,
+        baseUrl: config.config.baseUrl,
+        tableIds: config.config.tableIds,
       });
 
       const response = await api.getTableRows('episodes', 1, 1000);
@@ -350,7 +356,7 @@ const Episodes = () => {
       setIsLoading(false);
       return [];
     }
-  }, [config.apiToken, config.baseUrl, config.tableIds]);
+  }, [config.config.apiToken, config.config.baseUrl, config.config.tableIds]);
 
   return (
     <DashboardLayout>
@@ -362,7 +368,7 @@ const Episodes = () => {
           </p>
         </div>
 
-        {!config.apiToken || !config.tableIds.episodes ? (
+        {!config.config.apiToken || !config.config.tableIds.episodes ? (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-4 rounded-lg text-amber-800 dark:text-amber-200">
             <p className="text-sm">
               Configure o token da API e o ID da tabela de episódios nas configurações para visualizar os dados.

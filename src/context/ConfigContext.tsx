@@ -2,7 +2,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
 
-interface TableIds {
+export interface TableIds {
   contents: string;
   episodes: string;
   banners: string;
@@ -12,7 +12,7 @@ interface TableIds {
   platforms: string;
 }
 
-interface Config {
+export interface Config {
   apiToken: string;
   baseUrl: string;
   tableIds: TableIds;
