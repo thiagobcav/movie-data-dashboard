@@ -21,9 +21,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BadgeExtended } from '@/components/ui/badge-extended';
 
-// Storage key for encrypted configuration
-const CONFIG_STORAGE_KEY = 'admin_config_secure';
-
 const ConfigPanel = () => {
   const { config, updateConfig } = useConfig();
   const { user } = useAuth();
@@ -64,9 +61,6 @@ const ConfigPanel = () => {
       baseUrl,
       tableIds,
     };
-    
-    // Save to local storage (encrypted)
-    localStorage.setItem(CONFIG_STORAGE_KEY, encrypt(JSON.stringify(newConfig)));
     
     // Update the global config
     updateConfig(newConfig);

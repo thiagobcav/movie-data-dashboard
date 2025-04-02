@@ -40,7 +40,7 @@ const defaultConfig: Config = {
   }
 };
 
-// Storage key for both localStorage methods
+// Storage key for localStorage
 const STORAGE_KEY = 'baserow-config';
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
