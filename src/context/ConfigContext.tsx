@@ -2,7 +2,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
 
-export interface TableIds {
+interface TableIds {
   contents: string;
   episodes: string;
   banners: string;
@@ -12,7 +12,7 @@ export interface TableIds {
   platforms: string;
 }
 
-export interface Config {
+interface Config {
   apiToken: string;
   baseUrl: string;
   tableIds: TableIds;
@@ -40,9 +40,6 @@ const defaultConfig: Config = {
   }
 };
 
-// Storage key for localStorage
-const STORAGE_KEY = 'baserow-config';
-
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -50,7 +47,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     // Load configuration from localStorage
-    const storedConfig = localStorage.getItem(STORAGE_KEY);
+    const storedConfig = localStorage.getItem('baserow-config');
     
     if (storedConfig) {
       try {
@@ -68,7 +65,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const saveToLocalStorage = (newConfig: Config) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
+    localStorage.setItem('baserow-config', JSON.stringify(newConfig));
   };
 
   const updateConfig = (newConfig: Config) => {

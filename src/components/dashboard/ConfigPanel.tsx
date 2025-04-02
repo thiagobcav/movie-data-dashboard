@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useConfig, TableIds } from '@/context/ConfigContext';
+import { useConfig } from '@/context/ConfigContext';
 import { encrypt, decrypt } from '@/utils/encryption';
 import { toast } from 'sonner';
 import { LockIcon, RefreshCcw } from 'lucide-react';
@@ -19,14 +19,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getLogs, clearLogs, LogEntry } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { BadgeExtended } from '@/components/ui/badge-extended';
+
+// Storage key for encrypted configuration
+const CONFIG_STORAGE_KEY = 'admin_config_secure';
 
 const ConfigPanel = () => {
   const { config, updateConfig } = useConfig();
   const { user } = useAuth();
   const [apiToken, setApiToken] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [tableIds, setTableIds] = useState<TableIds>({
+  const [tableIds, setTableIds] = useState<Record<string, string>>({
     contents: '',
     episodes: '',
     banners: '',
@@ -40,20 +42,29 @@ const ConfigPanel = () => {
 
   // Load stored configuration on component mount
   useEffect(() => {
-    if (config) {
-      setApiToken(config.apiToken || '');
-      setBaseUrl(config.baseUrl || '');
-      setTableIds(config.tableIds || {
-        contents: '',
-        episodes: '',
-        banners: '',
-        categories: '',
-        users: '',
-        sessions: '',
-        platforms: '',
-      });
+    const storedEncryptedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+    
+    if (storedEncryptedConfig) {
+      try {
+        const decryptedConfig = decrypt(storedEncryptedConfig);
+        const parsedConfig = JSON.parse(decryptedConfig);
+        
+        setApiToken(parsedConfig.apiToken || '');
+        setBaseUrl(parsedConfig.baseUrl || '');
+        setTableIds(parsedConfig.tableIds || {});
+        
+        // Update the global config context
+        updateConfig({
+          apiToken: parsedConfig.apiToken || '',
+          baseUrl: parsedConfig.baseUrl || '',
+          tableIds: parsedConfig.tableIds || {},
+        });
+      } catch (error) {
+        console.error('Failed to parse stored configuration:', error);
+        toast.error('Erro ao carregar configurações salvas');
+      }
     }
-  }, [config]);
+  }, [updateConfig]);
 
   const handleSaveConfig = () => {
     const newConfig = {
@@ -62,6 +73,9 @@ const ConfigPanel = () => {
       tableIds,
     };
     
+    // Save to local storage (encrypted)
+    localStorage.setItem(CONFIG_STORAGE_KEY, encrypt(JSON.stringify(newConfig)));
+    
     // Update the global config
     updateConfig(newConfig);
     
@@ -69,7 +83,7 @@ const ConfigPanel = () => {
   };
 
   const handleTableIdChange = (
-    key: keyof TableIds,
+    key: string,
     value: string
   ) => {
     setTableIds((prev) => ({
@@ -310,9 +324,9 @@ const ConfigPanel = () => {
                       className="p-3 rounded border bg-card shadow-sm"
                     >
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
-                        <BadgeExtended variant={getLogBadgeVariant(log.type)} className="w-fit">
+                        <Badge variant={getLogBadgeVariant(log.type)} className="w-fit">
                           {log.type.toUpperCase()}
-                        </BadgeExtended>
+                        </Badge>
                         <span className="text-xs text-muted-foreground">
                           {new Date(log.timestamp).toLocaleString()}
                         </span>

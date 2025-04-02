@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataPanel from '@/components/dashboard/DataPanel';
-import { useConfiguredApi } from '@/utils/configHelper';
+import { useConfig } from '@/context/ConfigContext';
+import { createApi } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings } from 'lucide-react';
@@ -15,7 +16,7 @@ const BANNERS_API_TOKEN = "9HJjNCWkRnJDxwYZHLYG9sHgLEu2Pbar";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { config, api, isConfigured } = useConfiguredApi();
+  const config = useConfig();
   const [isLoading, setIsLoading] = useState(true);
   const [banners, setBanners] = useState([]);
   const [stats, setStats] = useState({
@@ -50,12 +51,17 @@ const Index = () => {
   };
 
   const fetchStats = async () => {
-    if (!isConfigured) {
+    if (!config.apiToken) {
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
+    const api = createApi({
+      apiToken: config.apiToken,
+      baseUrl: config.baseUrl,
+      tableIds: config.tableIds,
+    });
 
     try {
       // Fetch stats
@@ -99,7 +105,7 @@ const Index = () => {
     
     // Load stats from the user's configured API
     fetchStats();
-  }, [isConfigured, config]);
+  }, [config.apiToken, config.baseUrl, config.tableIds]);
 
   return (
     <DashboardLayout>
@@ -129,7 +135,7 @@ const Index = () => {
           </div>
         )}
 
-        {!isConfigured ? (
+        {!config.apiToken ? (
           <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 animate-fade-in">
             <CardHeader>
               <CardTitle>Configuração necessária</CardTitle>

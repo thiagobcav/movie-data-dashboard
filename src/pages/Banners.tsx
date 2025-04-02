@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
 import CrudDialog from '@/components/dashboard/CrudDialog';
 import DeleteDialog from '@/components/dashboard/DeleteDialog';
-import { useConfiguredApi } from '@/utils/configHelper';
+import { useConfig } from '@/context/ConfigContext';
+import { createApi } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
 import { formatCategories } from '@/utils/formatters';
 import { toast } from 'sonner';
@@ -13,7 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { Check, X } from 'lucide-react';
 
 const Banners = () => {
-  const { config, api, isConfigured } = useConfiguredApi();
+  const config = useConfig();
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,7 +94,7 @@ const Banners = () => {
   ];
 
   const fetchData = async () => {
-    if (!isConfigured || !config.tableIds.banners) {
+    if (!config.apiToken || !config.tableIds.banners) {
       setIsLoading(false);
       return;
     }
@@ -100,6 +102,12 @@ const Banners = () => {
     setIsLoading(true);
 
     try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
       const response = await api.getTableRows('banners', currentPage, pageSize, 'order_by=-Data');
       
       setData(response.results || []);
@@ -114,7 +122,7 @@ const Banners = () => {
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, isConfigured, config.tableIds.banners]);
+  }, [currentPage, config.apiToken, config.baseUrl, config.tableIds.banners]);
 
   const handleView = (row: any) => {
     toast.info(
@@ -172,7 +180,7 @@ const Banners = () => {
       return;
     }
 
-    if (!isConfigured || !config.tableIds.banners) {
+    if (!config.apiToken || !config.tableIds.banners) {
       toast.error('Configure o token da API e o ID da tabela');
       return;
     }
@@ -180,6 +188,12 @@ const Banners = () => {
     setIsSubmitting(true);
 
     try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
       if (currentBanner) {
         // Update
         await api.updateRow('banners', currentBanner.id, formData);
@@ -201,13 +215,19 @@ const Banners = () => {
   };
 
   const handleConfirmDelete = async () => {
-    if (!currentBanner || !isConfigured || !config.tableIds.banners) {
+    if (!currentBanner || !config.apiToken || !config.tableIds.banners) {
       return;
     }
 
     setIsSubmitting(true);
 
     try {
+      const api = createApi({
+        apiToken: config.apiToken,
+        baseUrl: config.baseUrl,
+        tableIds: config.tableIds,
+      });
+
       await api.deleteRow('banners', currentBanner.id);
       toast.success('Banner excluído com sucesso');
       setIsDeleteDialogOpen(false);
@@ -230,7 +250,7 @@ const Banners = () => {
           </p>
         </div>
 
-        {!isConfigured || !config.tableIds.banners ? (
+        {!config.apiToken || !config.tableIds.banners ? (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-4 rounded-lg text-amber-800 dark:text-amber-200">
             <p className="text-sm">
               Configure o token da API e o ID da tabela de banners nas configurações para visualizar os dados.

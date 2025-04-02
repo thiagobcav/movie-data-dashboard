@@ -1,6 +1,4 @@
-
 import axios, { AxiosRequestConfig } from 'axios';
-import { TableIds } from '@/context/ConfigContext';
 
 // Armazenar logs para depuração
 const apiLogs: LogEntry[] = [];
@@ -47,7 +45,7 @@ export const clearLogs = () => {
 interface ApiConfig {
   apiToken: string;
   baseUrl: string;
-  tableIds: TableIds;
+  tableIds: Record<string, string>;
 }
 
 // Modifica o comportamento do console.log para evitar exposição de Headers
@@ -107,11 +105,6 @@ console.error = function(...args) {
 };
 
 export const createApi = (config: ApiConfig) => {
-  // Verifica se as credenciais estão configuradas
-  if (!config.apiToken) {
-    addLog('warning', 'API criada sem token de autenticação');
-  }
-
   const instance = axios.create({
     baseURL: config.baseUrl,
     headers: {
@@ -127,7 +120,7 @@ export const createApi = (config: ApiConfig) => {
       const sanitizedConfig = { ...config };
       delete sanitizedConfig.headers;
       
-      addLog('info', `Requisição iniciada: ${config.method?.toUpperCase() || 'GET'} ${config.url || ''}`, {
+      addLog('info', `Requisição iniciada: ${config.method?.toUpperCase()} ${config.url}`, {
         method: config.method,
         url: config.url,
         params: config.params
@@ -146,7 +139,7 @@ export const createApi = (config: ApiConfig) => {
   // Interceptar respostas para registrar logs
   instance.interceptors.response.use(
     (response) => {
-      addLog('success', `Requisição bem-sucedida: ${response.config.method?.toUpperCase() || 'GET'} ${response.config.url || ''}`, {
+      addLog('success', `Requisição bem-sucedida: ${response.config.method?.toUpperCase()} ${response.config.url}`, {
         status: response.status,
         statusText: response.statusText,
         dataLength: response.data ? JSON.stringify(response.data).length : 0
@@ -171,29 +164,12 @@ export const createApi = (config: ApiConfig) => {
     }
   );
 
-  // Verificar se a tabela está configurada
-  const validateTableId = (table: string): string => {
-    const tableId = config.tableIds[table as keyof TableIds];
-    if (!tableId) {
-      const error = `ID da tabela "${table}" não configurado`;
-      addLog('error', error);
-      throw new Error(error);
-    }
-    return tableId;
-  };
-
   // Métodos da API
   return {
-    getTableRows: async (table: string, page: number = 1, size: number = 10, queryParams?: string) => {
+    getTableRows: async (table: string, page: number = 1, size: number = 10) => {
       try {
-        const tableId = validateTableId(table);
-        let url = `/database/rows/table/${tableId}/?page=${page}&size=${size}`;
-        
-        if (queryParams) {
-          url += `&${queryParams}`;
-        }
-        
-        const response = await instance.get(url);
+        const tableId = config.tableIds[table];
+        const response = await instance.get(`/database/rows/table/${tableId}/?page=${page}&size=${size}`);
         return response.data;
       } catch (error: any) {
         console.error(`Error fetching ${table} table rows:`, error);
@@ -204,8 +180,8 @@ export const createApi = (config: ApiConfig) => {
 
     searchTable: async (table: string, searchTerm: string, page: number = 1, size: number = 10) => {
       try {
-        const tableId = validateTableId(table);
-        const response = await instance.get(`/database/rows/table/${tableId}/?search=${encodeURIComponent(searchTerm)}&page=${page}&size=${size}`);
+        const tableId = config.tableIds[table];
+        const response = await instance.get(`/database/rows/table/${tableId}/?search=${searchTerm}&page=${page}&size=${size}`);
         return response.data;
       } catch (error: any) {
         console.error(`Error searching ${table} table:`, error);
@@ -216,7 +192,7 @@ export const createApi = (config: ApiConfig) => {
 
     getRow: async (table: string, rowId: string) => {
       try {
-        const tableId = validateTableId(table);
+        const tableId = config.tableIds[table];
         const response = await instance.get(`/database/rows/table/${tableId}/${rowId}/`);
         return response.data;
       } catch (error: any) {
@@ -228,7 +204,7 @@ export const createApi = (config: ApiConfig) => {
 
     createRow: async (table: string, data: any) => {
       try {
-        const tableId = validateTableId(table);
+        const tableId = config.tableIds[table];
         const response = await instance.post(`/database/rows/table/${tableId}/`, data);
         return response.data;
       } catch (error: any) {
@@ -240,7 +216,7 @@ export const createApi = (config: ApiConfig) => {
 
     updateRow: async (table: string, rowId: string, data: any) => {
       try {
-        const tableId = validateTableId(table);
+        const tableId = config.tableIds[table];
         const response = await instance.patch(`/database/rows/table/${tableId}/${rowId}/`, data);
         return response.data;
       } catch (error: any) {
@@ -252,7 +228,7 @@ export const createApi = (config: ApiConfig) => {
 
     deleteRow: async (table: string, rowId: string) => {
       try {
-        const tableId = validateTableId(table);
+        const tableId = config.tableIds[table];
         const response = await instance.delete(`/database/rows/table/${tableId}/${rowId}/`);
         return response.data;
       } catch (error: any) {
