@@ -2,31 +2,24 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
 
-interface TableIds {
-  contents: string;
-  episodes: string;
-  banners: string;
-  categories: string;
-  users: string;
-  sessions: string;
-  platforms: string;
-}
-
-interface Config {
+interface ConfigContextType {
   apiToken: string;
   baseUrl: string;
-  tableIds: TableIds;
-}
-
-interface ConfigContextType {
-  config: Config;
-  updateConfig: (config: Config) => void;
+  tableIds: {
+    contents: string;
+    episodes: string;
+    banners: string;
+    categories: string;
+    users: string;
+    sessions: string;
+    platforms: string;
+  };
   updateApiToken: (token: string) => void;
   updateBaseUrl: (url: string) => void;
-  updateTableId: (table: keyof TableIds, id: string) => void;
+  updateTableId: (table: keyof ConfigContextType['tableIds'], id: string) => void;
 }
 
-const defaultConfig: Config = {
+const defaultConfig = {
   apiToken: '',
   baseUrl: 'https://api.baserow.io/api',
   tableIds: {
@@ -43,7 +36,17 @@ const defaultConfig: Config = {
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [config, setConfig] = useState<Config>(defaultConfig);
+  const [apiToken, setApiToken] = useState<string>('');
+  const [baseUrl, setBaseUrl] = useState<string>('https://api.baserow.io/api');
+  const [tableIds, setTableIds] = useState({
+    contents: '',
+    episodes: '',
+    banners: '',
+    categories: '',
+    users: '',
+    sessions: '',
+    platforms: '',
+  });
 
   useEffect(() => {
     // Load configuration from localStorage
@@ -52,11 +55,9 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (storedConfig) {
       try {
         const parsedConfig = JSON.parse(storedConfig);
-        setConfig({
-          apiToken: parsedConfig.apiToken || '',
-          baseUrl: parsedConfig.baseUrl || 'https://api.baserow.io/api',
-          tableIds: parsedConfig.tableIds || defaultConfig.tableIds,
-        });
+        setApiToken(parsedConfig.apiToken || '');
+        setBaseUrl(parsedConfig.baseUrl || 'https://api.baserow.io/api');
+        setTableIds(parsedConfig.tableIds || defaultConfig.tableIds);
       } catch (error) {
         console.error('Failed to parse stored config:', error);
         toast.error('Erro ao carregar configurações salvas');
@@ -64,49 +65,46 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  const saveToLocalStorage = (newConfig: Config) => {
-    localStorage.setItem('baserow-config', JSON.stringify(newConfig));
-  };
-
-  const updateConfig = (newConfig: Config) => {
-    setConfig(newConfig);
-    saveToLocalStorage(newConfig);
+  const saveToLocalStorage = (newConfig: Partial<typeof defaultConfig>) => {
+    const currentConfig = {
+      apiToken,
+      baseUrl,
+      tableIds
+    };
+    
+    const updatedConfig = {
+      ...currentConfig,
+      ...newConfig
+    };
+    
+    localStorage.setItem('baserow-config', JSON.stringify(updatedConfig));
   };
 
   const updateApiToken = (token: string) => {
-    const newConfig = {
-      ...config,
-      apiToken: token
-    };
-    setConfig(newConfig);
-    saveToLocalStorage(newConfig);
+    setApiToken(token);
+    saveToLocalStorage({ apiToken: token });
     toast.success('Token da API atualizado');
   };
 
   const updateBaseUrl = (url: string) => {
-    const newConfig = {
-      ...config,
-      baseUrl: url
-    };
-    setConfig(newConfig);
-    saveToLocalStorage(newConfig);
+    setBaseUrl(url);
+    saveToLocalStorage({ baseUrl: url });
     toast.success('URL base atualizada');
   };
 
-  const updateTableId = (table: keyof TableIds, id: string) => {
-    const newTableIds = { ...config.tableIds, [table]: id };
-    const newConfig = {
-      ...config,
-      tableIds: newTableIds
-    };
-    setConfig(newConfig);
-    saveToLocalStorage(newConfig);
+  const updateTableId = (table: keyof typeof tableIds, id: string) => {
+    setTableIds(prev => {
+      const newTableIds = { ...prev, [table]: id };
+      saveToLocalStorage({ tableIds: newTableIds });
+      return newTableIds;
+    });
     toast.success(`ID da tabela ${table} atualizado`);
   };
 
-  const value: ConfigContextType = {
-    config,
-    updateConfig,
+  const value = {
+    apiToken,
+    baseUrl,
+    tableIds,
     updateApiToken,
     updateBaseUrl,
     updateTableId

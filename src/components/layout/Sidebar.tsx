@@ -165,7 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     onClick={(e) => handlePremiumItemClick(e, item.isPremium || false)}
                   >
                     {item.icon}
-                    {(!isMinimized || isMobile) && (
+                    {!isMinimized && (
                       <>
                         <span>{item.label}</span>
                         {item.isPremium && (
@@ -183,20 +183,20 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   </Link>
                 </TooltipTrigger>
-                {(isMinimized && !isMobile) || (item.isPremium && !isPremium) ? (
+                {(isMinimized || (item.isPremium && !isPremium)) && (
                   <TooltipContent side="right">
                     <p>{item.label}</p>
                     {item.isPremium && !isPremium && (
                       <p className="text-xs text-amber-500">Recurso Premium</p>
                     )}
                   </TooltipContent>
-                ) : null}
+                )}
               </Tooltip>
             </TooltipProvider>
           ))}
           
           <div className="pt-2 pb-1">
-            {(!isMinimized || isMobile) && (
+            {!isMinimized && (
               <p className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
                 Manutenção
               </p>
@@ -213,12 +213,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                       navItemClasses,
                       location.pathname === item.href && activeItemClasses,
                       item.isPremium && !isPremium && disabledItemClasses,
-                      isMinimized && !isMobile && 'justify-center px-2'
+                      isMinimized && 'justify-center px-2'
                     )}
                     onClick={(e) => handlePremiumItemClick(e, item.isPremium || false)}
                   >
                     {item.icon}
-                    {(!isMinimized || isMobile) && (
+                    {!isMinimized && (
                       <>
                         <span>{item.label}</span>
                         {item.isPremium && !isPremium && (
@@ -228,21 +228,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   </Link>
                 </TooltipTrigger>
-                {(isMinimized && !isMobile) || (item.isPremium && !isPremium) ? (
+                {(isMinimized || (item.isPremium && !isPremium)) && (
                   <TooltipContent side="right">
                     <p>{item.label}</p>
                     {item.isPremium && !isPremium && (
                       <p className="text-xs text-amber-500">Recurso Premium</p>
                     )}
                   </TooltipContent>
-                ) : null}
+                )}
               </Tooltip>
             </TooltipProvider>
           ))}
         </nav>
         
-        <div className={cn("p-4 border-t border-gray-200 dark:border-gray-700", isMinimized && !isMobile && "flex justify-center")}>
-          {!isMinimized || isMobile ? (
+        <div className={cn("p-4 border-t border-gray-200 dark:border-gray-700", isMinimized && "flex justify-center")}>
+          {!isMinimized ? (
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
                 {user?.Nome?.charAt(0) || 'U'}
