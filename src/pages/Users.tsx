@@ -16,6 +16,8 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 // Schema de validação para o formulário
 const userFormSchema = z.object({
@@ -25,13 +27,14 @@ const userFormSchema = z.object({
   Logins: z.number().int().nonnegative(),
   IMEI: z.string().optional(),
   Dias: z.number().int().min(1, { message: 'Mínimo de 1 dia' }),
-  Pagamento: z.string().min(1, { message: 'Data de pagamento é obrigatória' })
+  Pagamento: z.string().min(1, { message: 'Data de pagamento é obrigatória' }),
+  Whatsapp: z.string().optional(),
 });
 
 type UserFormValues = z.infer<typeof userFormSchema>;
 
 const Users = () => {
-  const config = useConfig();
+  const { config } = useConfig();
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,7 +43,41 @@ const Users = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [hasWhatsappColumn, setHasWhatsappColumn] = useState(false);
   const pageSize = 10;
+
+  // Função para formatar número de WhatsApp para URL
+  const formatWhatsAppUrl = (number: string) => {
+    if (!number) return '';
+    
+    // Remover todos os caracteres não numéricos
+    const cleanNumber = number.replace(/\D/g, '');
+    
+    // Verificar se já começa com o código do país
+    const formattedNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`;
+    
+    return `https://wa.me/${formattedNumber}`;
+  };
+
+  // Função para adicionar botão de WhatsApp
+  const renderWhatsappButton = (value: string) => {
+    if (!value) return null;
+    
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          window.open(formatWhatsAppUrl(value), '_blank');
+        }}
+        className="flex items-center gap-1 bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900/30"
+      >
+        <MessageSquare size={14} />
+        <span className="hidden sm:inline">WhatsApp</span>
+      </Button>
+    );
+  };
 
   // Colunas da tabela
   const columns = [
@@ -88,6 +125,15 @@ const Users = () => {
       }
     },
   ];
+  
+  // Adicionar coluna de WhatsApp dinamicamente se existir
+  if (hasWhatsappColumn) {
+    columns.push({ 
+      key: 'Whatsapp', 
+      label: 'WhatsApp',
+      render: renderWhatsappButton
+    });
+  }
 
   // Configuração do formulário com react-hook-form
   const form = useForm<UserFormValues>({
@@ -99,7 +145,8 @@ const Users = () => {
       Logins: 0,
       IMEI: '',
       Dias: 30,
-      Pagamento: new Date().toISOString().split('T')[0]
+      Pagamento: new Date().toISOString().split('T')[0],
+      Whatsapp: ''
     }
   });
 
@@ -120,6 +167,12 @@ const Users = () => {
       });
 
       const response = await api.getTableRows('users', currentPage, pageSize);
+      
+      // Verificar se existe a coluna Whatsapp
+      if (response.results && response.results.length > 0) {
+        const firstUser = response.results[0];
+        setHasWhatsappColumn('Whatsapp' in firstUser);
+      }
       
       setData(response.results || []);
       setTotalPages(Math.ceil((response.count || 0) / pageSize));
@@ -146,6 +199,20 @@ const Users = () => {
         <p><strong>Email:</strong> {row.Email}</p>
         <p><strong>Dispositivo:</strong> {imeiData.Dispositivo || 'N/A'}</p>
         <p><strong>IMEI:</strong> {imeiData.IMEI || 'N/A'}</p>
+        {row.Whatsapp && (
+          <p>
+            <strong>WhatsApp:</strong> {row.Whatsapp}{' '}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-2 h-6 px-2 py-0 bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900/30"
+              onClick={() => window.open(formatWhatsAppUrl(row.Whatsapp), '_blank')}
+            >
+              <MessageSquare size={12} className="mr-1" />
+              Contato
+            </Button>
+          </p>
+        )}
       </div>,
       {
         duration: 5000,
@@ -164,7 +231,8 @@ const Users = () => {
       Logins: row.Logins || 0,
       IMEI: row.IMEI || '',
       Dias: row.Dias || 30,
-      Pagamento: row.Pagamento ? row.Pagamento.split('T')[0] : new Date().toISOString().split('T')[0]
+      Pagamento: row.Pagamento ? row.Pagamento.split('T')[0] : new Date().toISOString().split('T')[0],
+      Whatsapp: row.Whatsapp || ''
     });
     
     setIsDialogOpen(true);
@@ -188,7 +256,8 @@ const Users = () => {
       Logins: 0,
       IMEI: '',
       Dias: 30,
-      Pagamento: today
+      Pagamento: today,
+      Whatsapp: ''
     });
     
     setIsDialogOpen(true);
@@ -420,6 +489,27 @@ const Users = () => {
                 </FormItem>
               )}
             />
+
+            {hasWhatsappColumn && (
+              <FormField
+                control={form.control}
+                name="Whatsapp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>WhatsApp</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="(99) 99999-9999"
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Número do WhatsApp no formato (99) 99999-9999 ou 99999999999
+                    </p>
+                  </FormItem>
+                )}
+              />
+            )}
           </form>
         </Form>
       </CrudDialog>

@@ -1,19 +1,43 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Button } from '@/components/ui/button';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { ButtonExtended } from '@/components/ui/button-extended';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { parseM3U } from '@/utils/m3uParser';
-import { useConfig } from '@/context/ConfigContext';
-import { createApi } from '@/utils/api';
-import { toast } from 'sonner';
-import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Upload, CheckCircle, Lock, Film, Tv, Laptop } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useConfig } from '@/context/ConfigContext';
+import { createApi, addLog } from '@/utils/api';
+import { parseM3u } from '@/utils/m3uParser';
+import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
+import { 
+  Upload, 
+  Link as LinkIcon, 
+  AlertCircle, 
+  CheckCircle2, 
+  XCircle, 
+  RefreshCw,
+  Lock,
+  Info
+} from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Table,
   TableBody,
@@ -22,498 +46,476 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { RadialProgress } from '@/components/ui/RadialProgress';
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { motion, AnimatePresence } from 'framer-motion';
 
-type ContentType = 'movie' | 'series' | 'tv' | 'unknown';
-
-interface ParsedItem {
-  id?: number;
+interface M3uItem {
   title: string;
   url: string;
-  tvgId?: string;
-  tvgName?: string;
-  tvgLogo?: string;
-  groupTitle?: string;
-  type?: ContentType;
-  status?: 'pending' | 'processed' | 'error' | 'duplicate' | 'uploaded';
-  error?: string;
+  type: 'movie' | 'series' | 'tv' | 'unknown';
+  group?: string;
+  thumbnail?: string;
+  serie?: string;
+  episode?: string;
+  season?: string;
 }
 
-interface SeriesData {
-  [key: string]: {
-    name: string;
-    episodes: ParsedItem[];
-  };
+interface ProcessingStats {
+  total: number;
+  processed: number;
+  skipped: number;
+  errors: number;
+  success: number;
+  movies: number;
+  series: number;
+  tv: number;
+  unknown: number;
 }
 
-function BulkUpload() {
-  const { user, isPremiumFeatureAvailable } = useAuth();
+const initialStats: ProcessingStats = {
+  total: 0,
+  processed: 0,
+  skipped: 0,
+  errors: 0,
+  success: 0,
+  movies: 0,
+  series: 0,
+  tv: 0,
+  unknown: 0
+};
+
+const BulkUpload: React.FC = () => {
   const { config } = useConfig();
-  const [m3uUrl, setM3uUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
-  const [processedCount, setProcessedCount] = useState(0);
-  const [uploading, setUploading] = useState(false);
-  const [uploadTab, setUploadTab] = useState<'url' | 'file'>('url');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [viewTab, setViewTab] = useState<ContentType | 'all'>('all');
-  const [uploadedCount, setUploadedCount] = useState({ total: 0, movies: 0, series: 0, tv: 0 });
-  const [seriesData, setSeriesData] = useState<SeriesData>({});
-  const [duplicatesFound, setDuplicatesFound] = useState(0);
-  const [urlError, setUrlError] = useState('');
-  
+  const { user } = useAuth();
   const isPremium = user?.Premium === true;
   
-  const resetState = () => {
-    setParsedItems([]);
-    setProcessedCount(0);
-    setUploadProgress(0);
-    setUploadedCount({ total: 0, movies: 0, series: 0, tv: 0 });
-    setSeriesData({});
-    setDuplicatesFound(0);
-    setUrlError('');
-  };
+  const [activeTab, setActiveTab] = useState('url');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [m3uUrl, setM3uUrl] = useState('');
+  const [m3uContent, setM3uContent] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [items, setItems] = useState<M3uItem[]>([]);
+  const [filteredItems, setFilteredItems] = useState<M3uItem[]>([]);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [stats, setStats] = useState<ProcessingStats>(initialStats);
+  const [error, setError] = useState<string | null>(null);
+  const [processingLog, setProcessingLog] = useState<string[]>([]);
   
-  const filterItemsByType = (items: ParsedItem[]): ParsedItem[] => {
-    if (viewTab === 'all') return items;
-    return items.filter(item => item.type === viewTab);
-  };
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const countItemsByType = (items: ParsedItem[]): Record<ContentType | 'all', number> => {
-    const counts: Record<ContentType | 'all', number> = {
-      'all': items.length,
-      'movie': 0,
-      'series': 0,
-      'tv': 0,
-      'unknown': 0
-    };
-    
-    items.forEach(item => {
-      if (item.type) {
-        counts[item.type] += 1;
-      } else {
-        counts.unknown += 1;
-      }
-    });
-    
-    return counts;
-  };
+  // Reset form when tab changes
+  useEffect(() => {
+    setM3uUrl('');
+    setM3uContent('');
+    setUploadedFile(null);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [activeTab]);
   
-  const fetchM3UFromUrl = async () => {
-    resetState();
-    setIsLoading(true);
-    
-    if (!m3uUrl) {
-      setUrlError('Por favor, informe uma URL válida');
-      setIsLoading(false);
+  // Filter items based on selected type
+  useEffect(() => {
+    if (items.length === 0) {
+      setFilteredItems([]);
       return;
     }
     
+    if (filterType === 'all') {
+      setFilteredItems(items);
+    } else {
+      setFilteredItems(items.filter(item => item.type === filterType));
+    }
+  }, [items, filterType]);
+  
+  // Handle file upload
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+      setError(null);
+      
+      // Read file content
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setM3uContent(event.target.result as string);
+        }
+      };
+      reader.onerror = () => {
+        setError('Erro ao ler o arquivo');
+      };
+      reader.readAsText(file);
+    }
+  };
+  
+  // Process M3U content
+  const processM3uContent = async (content: string) => {
+    setItems([]);
+    setFilteredItems([]);
+    setStats(initialStats);
+    setProcessingLog([]);
+    
     try {
-      const response = await fetch(m3uUrl);
+      addLog('info', 'Iniciando processamento de arquivo M3U');
+      const parseResult = parseM3u(content);
+      
+      if (!parseResult || parseResult.length === 0) {
+        addLog('error', 'O arquivo M3U está vazio ou em formato inválido');
+        throw new Error("O arquivo M3U está vazio ou em formato inválido");
+      }
+      
+      addLog('success', `Arquivo M3U processado com sucesso. ${parseResult.length} itens encontrados.`);
+      
+      // Process items to identify types
+      const processedItems: M3uItem[] = parseResult.map(item => {
+        const title = item.title || '';
+        const url = item.url || '';
+        
+        let type: M3uItem['type'] = 'unknown';
+        let serie: string | undefined = undefined;
+        let episode: string | undefined = undefined;
+        let season: string | undefined = undefined;
+        
+        // Try to determine content type based on group, title, and URL patterns
+        const group = item.group?.toLowerCase() || '';
+        
+        // Check if it's a TV channel
+        if (
+          group.includes('tv') || 
+          group.includes('canal') || 
+          group.includes('channel') ||
+          title.includes('|TV|') ||
+          title.includes('|CANAL|')
+        ) {
+          type = 'tv';
+        } 
+        // Check if it's a series episode
+        else if (
+          group.includes('serie') ||
+          title.match(/S\d+E\d+/) || // S01E01 format
+          title.match(/\s+E\d+/) ||  // E01 format
+          title.match(/\s+T\d+/) ||  // T01 format
+          title.includes('temporada') ||
+          title.includes('episódio') ||
+          title.includes('episodio') ||
+          group.includes('series')
+        ) {
+          type = 'series';
+          
+          // Extract series name, episode and season if possible
+          const seriesMatch = title.match(/^(.+?)(?:\s+[-|]\s+S\d+|E\d+|\s+T\d+|\s+Temporada|\s+Episodio|\s+Episódio)/i);
+          if (seriesMatch) {
+            serie = seriesMatch[1].trim();
+          }
+          
+          // Extract season
+          const seasonMatch = title.match(/S(\d+)|T(\d+)|Temporada\s+(\d+)/i);
+          if (seasonMatch) {
+            season = (seasonMatch[1] || seasonMatch[2] || seasonMatch[3]).padStart(2, '0');
+          }
+          
+          // Extract episode
+          const episodeMatch = title.match(/E(\d+)|Ep(?:isodio|isódio)\s+(\d+)/i);
+          if (episodeMatch) {
+            episode = (episodeMatch[1] || episodeMatch[2]).padStart(2, '0');
+          }
+        } 
+        // Default to movie if not identified as TV or series
+        else {
+          type = 'movie';
+        }
+        
+        return {
+          ...item,
+          type,
+          serie,
+          episode,
+          season
+        };
+      });
+      
+      // Update stats
+      const newStats = {
+        total: processedItems.length,
+        processed: 0,
+        skipped: 0,
+        errors: 0,
+        success: 0,
+        movies: processedItems.filter(i => i.type === 'movie').length,
+        series: processedItems.filter(i => i.type === 'series').length,
+        tv: processedItems.filter(i => i.type === 'tv').length,
+        unknown: processedItems.filter(i => i.type === 'unknown').length
+      };
+      
+      setStats(newStats);
+      setItems(processedItems);
+      
+      return processedItems;
+    } catch (error) {
+      console.error('Erro ao processar arquivo M3U:', error);
+      addLog('error', `Erro ao processar arquivo M3U: ${(error as Error).message}`);
+      
+      setError(`Erro ao processar arquivo M3U: ${(error as Error).message}`);
+      return [];
+    }
+  };
+  
+  // Handle URL fetch
+  const handleUrlFetch = async () => {
+    if (!m3uUrl) {
+      setError('Por favor, insira uma URL válida');
+      return;
+    }
+    
+    setIsProcessing(true);
+    setError(null);
+    
+    try {
+      addLog('info', `Buscando M3U da URL: ${m3uUrl}`);
+      
+      // Add proxy to bypass CORS if needed
+      const proxyUrl = 'https://corsproxy.io/?';
+      const response = await fetch(`${proxyUrl}${encodeURIComponent(m3uUrl)}`, {
+        headers: {
+          'Accept': 'text/plain, */*',
+        }
+      });
+      
       if (!response.ok) {
-        throw new Error('Erro ao obter o arquivo: ' + response.statusText);
+        throw new Error(`Falha ao buscar M3U: ${response.status} ${response.statusText}`);
       }
       
       const content = await response.text();
-      processM3UContent(content);
-    } catch (error) {
-      console.error('Erro ao obter o M3U da URL:', error);
-      toast.error('Erro ao obter arquivo M3U da URL');
-      setIsLoading(false);
-      setUrlError((error as Error).message || 'Erro ao obter o M3U');
-    }
-  };
-  
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    resetState();
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    setIsLoading(true);
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      if (content) {
-        processM3UContent(content);
-      } else {
-        toast.error('Erro ao ler o arquivo');
-        setIsLoading(false);
-      }
-    };
-    
-    reader.onerror = () => {
-      toast.error('Erro ao ler o arquivo');
-      setIsLoading(false);
-    };
-    
-    reader.readAsText(file);
-  };
-  
-  const processM3UContent = (content: string) => {
-    try {
-      // Parse the M3U content
-      const items = parseM3U(content);
       
-      if (!items || items.length === 0) {
-        toast.error('Nenhum item encontrado no arquivo M3U');
-        setIsLoading(false);
-        return;
+      if (!content || content.trim() === '') {
+        throw new Error('O arquivo M3U está vazio');
       }
       
-      // Add status field to each item
-      const itemsWithStatus = items.map((item) => ({
-        ...item,
-        status: 'pending' as const
-      }));
+      addLog('success', 'Arquivo M3U obtido com sucesso da URL');
       
-      // Group series episodes by series name
-      const seriesItems: SeriesData = {};
-      itemsWithStatus
-        .filter(item => item.type === 'series')
-        .forEach(item => {
-          // Extract series name from title
-          let seriesName = item.title;
-          
-          // Try to extract name using common formats
-          const seriesMatch = item.title.match(/^(.+?)(?:\s+[Ss](\d+)[Ee](\d+)|\s+[Tt](\d+)[Ee](\d+)|\s+-\s+[Ee]p(?:is[óo]dio)?\s*\d+)/i);
-          if (seriesMatch) {
-            seriesName = seriesMatch[1].trim();
-          }
-          
-          // Add to series data structure
-          if (!seriesItems[seriesName]) {
-            seriesItems[seriesName] = {
-              name: seriesName,
-              episodes: []
-            };
-          }
-          
-          seriesItems[seriesName].episodes.push(item);
-        });
-      
-      setParsedItems(itemsWithStatus);
-      setSeriesData(seriesItems);
-      toast.success(`${itemsWithStatus.length} itens encontrados no arquivo M3U`);
+      // Process content
+      await processM3uContent(content);
     } catch (error) {
-      console.error('Erro ao processar arquivo M3U:', error);
-      toast.error('Erro ao processar arquivo M3U');
+      console.error('Erro ao buscar M3U:', error);
+      addLog('error', `Erro ao buscar M3U: ${(error as Error).message}`);
+      
+      setError(`Erro ao buscar M3U: ${(error as Error).message}`);
+      setItems([]);
+      setFilteredItems([]);
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
   
-  const checkItemExists = async (item: ParsedItem, type: 'contents' | 'episodes', nameField = 'Nome'): Promise<boolean> => {
-    if (!config.apiToken) {
-      toast.error('API Token não configurado');
-      return false;
-    }
-    
-    try {
-      const api = createApi({
-        apiToken: config.apiToken,
-        baseUrl: config.baseUrl,
-        tableIds: config.tableIds
-      });
-      
-      // Encode the name for the URL
-      const encodedFilter = encodeURIComponent(JSON.stringify({
-        filter_type: "AND",
-        filters: [{
-          type: "equal",
-          field: nameField,
-          value: item.title
-        }],
-        groups: []
-      }));
-      
-      const response = await api.getTableRows(
-        type, 
-        1, 
-        1, 
-        `filters=${encodedFilter}`
-      );
-      
-      return (response?.results?.length || 0) > 0;
-    } catch (error) {
-      console.error(`Erro ao verificar existência do item:`, error);
-      return false;
-    }
-  };
-  
-  const createContentItem = async (item: ParsedItem): Promise<number | null> => {
-    if (!config.apiToken) {
-      toast.error('API Token não configurado');
-      return null;
-    }
-    
-    try {
-      const api = createApi({
-        apiToken: config.apiToken,
-        baseUrl: config.baseUrl,
-        tableIds: config.tableIds
-      });
-      
-      const contentData = {
-        Nome: item.title,
-        Fonte: item.url,
-        Cover: item.tvgLogo || '',
-        Categoria: item.groupTitle || 'Outros',
-        Data: new Date().toISOString().split('T')[0],
-        Tipo: item.type === 'series' ? 'Série' : item.type === 'tv' ? 'TV' : 'Filme',
-        Views: 0
-      };
-      
-      const response = await api.createRow('contents', contentData);
-      return response.id;
-    } catch (error) {
-      console.error('Erro ao criar conteúdo:', error);
-      throw error;
-    }
-  };
-  
-  const createEpisodeItem = async (seriesId: number, item: ParsedItem): Promise<number | null> => {
-    if (!config.apiToken) {
-      toast.error('API Token não configurado');
-      return null;
-    }
-    
-    try {
-      const api = createApi({
-        apiToken: config.apiToken,
-        baseUrl: config.baseUrl,
-        tableIds: config.tableIds
-      });
-      
-      // Extract season and episode numbers from title
-      let season = 1;
-      let episode = 1;
-      
-      const seasonEpisodeMatch = item.title.match(/[Ss](\d+)[Ee](\d+)|[Tt](\d+)[Ee](\d+)/);
-      if (seasonEpisodeMatch) {
-        season = parseInt(seasonEpisodeMatch[1] || seasonEpisodeMatch[3], 10);
-        episode = parseInt(seasonEpisodeMatch[2] || seasonEpisodeMatch[4], 10);
-      }
-      
-      const episodeData = {
-        Nome: seriesData[item.title]?.name || item.title,
-        Fonte: item.url,
-        Capa: item.tvgLogo || '',
-        Temporada: season,
-        Episódio: episode,
-        Data: new Date().toISOString().split('T')[0],
-        Série: seriesId
-      };
-      
-      const response = await api.createRow('episodes', episodeData);
-      return response.id;
-    } catch (error) {
-      console.error('Erro ao criar episódio:', error);
-      throw error;
-    }
-  };
-  
-  const processSeriesItem = async (seriesName: string, items: ParsedItem[]): Promise<number> => {
-    let successCount = 0;
-    
-    try {
-      // First check if the series already exists
-      const seriesExists = await checkItemExists({ title: seriesName } as ParsedItem, 'contents');
-      
-      if (seriesExists) {
-        // Update items status to duplicate
-        const updatedItems = [...parsedItems];
-        items.forEach(episode => {
-          const index = updatedItems.findIndex(item => item.url === episode.url);
-          if (index !== -1) {
-            updatedItems[index].status = 'duplicate';
-          }
-        });
-        setParsedItems(updatedItems);
-        setDuplicatesFound(prev => prev + items.length);
-        return 0;
-      }
-      
-      // Create the series first
-      const firstEpisode = items[0];
-      const seriesData = {
-        title: seriesName,
-        url: firstEpisode.url,
-        tvgLogo: firstEpisode.tvgLogo,
-        groupTitle: firstEpisode.groupTitle,
-        type: 'series' as ContentType
-      };
-      
-      // Create the series content
-      const seriesId = await createContentItem(seriesData);
-      
-      if (!seriesId) {
-        throw new Error('Falha ao criar série');
-      }
-      
-      // Create episodes
-      for (const episode of items) {
-        // Update item status to processing
-        const updatedItems = [...parsedItems];
-        const index = updatedItems.findIndex(item => item.url === episode.url);
-        if (index !== -1) {
-          updatedItems[index].status = 'processed';
-          setParsedItems(updatedItems);
-        }
-        
-        await createEpisodeItem(seriesId, episode);
-        successCount++;
-        
-        // Update item status to uploaded
-        const finalItems = [...parsedItems];
-        const finalIndex = finalItems.findIndex(item => item.url === episode.url);
-        if (finalIndex !== -1) {
-          finalItems[finalIndex].status = 'uploaded';
-          setParsedItems(finalItems);
-        }
-        
-        setProcessedCount(prev => prev + 1);
-        setUploadProgress(Math.floor((processedCount + 1) * 100 / parsedItems.length));
-      }
-      
-      setUploadedCount(prev => ({
-        ...prev,
-        total: prev.total + successCount,
-        series: prev.series + 1
-      }));
-      
-      return successCount;
-    } catch (error) {
-      console.error(`Erro ao processar série ${seriesName}:`, error);
-      
-      // Update items status to error
-      const updatedItems = [...parsedItems];
-      items.forEach(episode => {
-        const index = updatedItems.findIndex(item => item.url === episode.url);
-        if (index !== -1) {
-          updatedItems[index].status = 'error';
-          updatedItems[index].error = (error as Error).message;
-        }
-      });
-      setParsedItems(updatedItems);
-      return 0;
-    }
-  };
-  
-  const processItem = async (item: ParsedItem): Promise<boolean> => {
-    try {
-      // Update item status to processing
-      const updatedItems = [...parsedItems];
-      const index = updatedItems.findIndex(i => i.url === item.url);
-      if (index !== -1) {
-        updatedItems[index].status = 'processed';
-        setParsedItems(updatedItems);
-      }
-      
-      // Check if item already exists
-      const exists = await checkItemExists(item, 'contents');
-      
-      if (exists) {
-        // Update item status to duplicate
-        const dupeItems = [...parsedItems];
-        const dupeIndex = dupeItems.findIndex(i => i.url === item.url);
-        if (dupeIndex !== -1) {
-          dupeItems[dupeIndex].status = 'duplicate';
-          setParsedItems(dupeItems);
-        }
-        setDuplicatesFound(prev => prev + 1);
-        return false;
-      }
-      
-      // Create item
-      await createContentItem(item);
-      
-      // Update item status to uploaded
-      const finalItems = [...parsedItems];
-      const finalIndex = finalItems.findIndex(i => i.url === item.url);
-      if (finalIndex !== -1) {
-        finalItems[finalIndex].status = 'uploaded';
-        setParsedItems(finalItems);
-      }
-      
-      // Update counters
-      if (item.type === 'movie') {
-        setUploadedCount(prev => ({
-          ...prev,
-          total: prev.total + 1,
-          movies: prev.movies + 1
-        }));
-      } else if (item.type === 'tv') {
-        setUploadedCount(prev => ({
-          ...prev,
-          total: prev.total + 1,
-          tv: prev.tv + 1
-        }));
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Erro ao processar item:', error);
-      
-      // Update item status to error
-      const errorItems = [...parsedItems];
-      const errorIndex = errorItems.findIndex(i => i.url === item.url);
-      if (errorIndex !== -1) {
-        errorItems[errorIndex].status = 'error';
-        errorItems[errorIndex].error = (error as Error).message;
-        setParsedItems(errorItems);
-      }
-      
-      return false;
-    }
-  };
-  
-  const startUpload = async () => {
-    if (!isPremiumFeatureAvailable('bulk-upload')) {
-      toast.error('Este recurso é exclusivo para usuários Premium');
+  // Handle file process
+  const handleFileProcess = async () => {
+    if (!m3uContent) {
+      setError('Por favor, faça upload de um arquivo M3U válido');
       return;
     }
     
-    if (parsedItems.length === 0) {
-      toast.error('Nenhum item para processar');
+    setIsProcessing(true);
+    setError(null);
+    
+    try {
+      await processM3uContent(m3uContent);
+    } catch (error) {
+      console.error('Erro ao processar arquivo:', error);
+      setError(`Erro ao processar arquivo: ${(error as Error).message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  // Handle pasted content
+  const handleContentProcess = async () => {
+    if (!m3uContent) {
+      setError('Por favor, cole o conteúdo M3U');
       return;
     }
     
-    setUploading(true);
-    setProcessedCount(0);
-    setUploadProgress(0);
-    setUploadedCount({ total: 0, movies: 0, series: 0, tv: 0 });
-    setDuplicatesFound(0);
+    setIsProcessing(true);
+    setError(null);
     
     try {
-      // First process all series (group episodes)
-      for (const seriesName in seriesData) {
-        await processSeriesItem(seriesName, seriesData[seriesName].episodes);
-      }
-      
-      // Process movies and TV shows
-      const nonSeriesItems = parsedItems.filter(item => 
-        item.type !== 'series' && item.status === 'pending'
-      );
-      
-      for (const item of nonSeriesItems) {
-        await processItem(item);
-        setProcessedCount(prev => prev + 1);
-        
-        // Update progress
-        const currentProgress = Math.floor((processedCount + 1) * 100 / parsedItems.length);
-        setUploadProgress(currentProgress);
-      }
-      
-      toast.success(`Upload concluído. ${uploadedCount.total} itens adicionados. ${duplicatesFound} duplicados ignorados.`);
+      await processM3uContent(m3uContent);
     } catch (error) {
-      console.error('Erro durante o upload:', error);
-      toast.error(`Erro durante o upload: ${(error as Error).message}`);
+      console.error('Erro ao processar conteúdo:', error);
+      setError(`Erro ao processar conteúdo: ${(error as Error).message}`);
     } finally {
-      setUploading(false);
+      setIsProcessing(false);
+    }
+  };
+  
+  // Import content to database
+  const handleImport = async () => {
+    if (!config.apiToken || !config.tableIds.contents || !config.tableIds.episodes) {
+      toast.error('Configure o token da API e os IDs das tabelas nas configurações');
+      return;
+    }
+    
+    if (items.length === 0) {
+      toast.error('Nenhum item para importar');
+      return;
+    }
+    
+    setIsProcessing(true);
+    const api = createApi({
+      apiToken: config.apiToken,
+      baseUrl: config.baseUrl,
+      tableIds: config.tableIds,
+    });
+    
+    const newStats = { ...stats, processed: 0, skipped: 0, errors: 0, success: 0 };
+    setStats(newStats);
+    
+    // Clear previous log
+    setProcessingLog([]);
+    
+    try {
+      // Process items one by one to avoid overwhelming the API
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        newStats.processed++;
+        
+        try {
+          // Check for duplicates first
+          let isDuplicate = false;
+          
+          const log = `Processando ${i+1}/${items.length}: ${item.title}`;
+          setProcessingLog(prev => [...prev, log]);
+          
+          if (item.type === 'series' && item.serie) {
+            // For series, check if the series already exists
+            const seriesName = item.serie;
+            const searchResponse = await api.searchTable('contents', seriesName, 1, 5);
+            
+            if (searchResponse.results && searchResponse.results.length > 0) {
+              // Check if this exact series exists
+              const exactMatch = searchResponse.results.find(
+                (r: any) => r.titulo?.toLowerCase() === seriesName.toLowerCase() && r.tipo === 'Serie'
+              );
+              
+              if (exactMatch) {
+                isDuplicate = true;
+                
+                // Series exists, so now check if this episode exists
+                if (item.season && item.episode) {
+                  const episodeSearchResponse = await api.searchTable(
+                    'episodes', 
+                    `${seriesName} S${item.season}E${item.episode}`,
+                    1, 
+                    5
+                  );
+                  
+                  if (episodeSearchResponse.results && episodeSearchResponse.results.length === 0) {
+                    // Episode doesn't exist, so we'll add it
+                    isDuplicate = false;
+                    
+                    const episodeData = {
+                      titulo: `${seriesName} S${item.season}E${item.episode}`,
+                      serie: seriesName,
+                      temporada: item.season,
+                      episodio: item.episode,
+                      link: item.url,
+                      conteudo_id: exactMatch.id
+                    };
+                    
+                    await api.createRow('episodes', episodeData);
+                    newStats.success++;
+                    
+                    const successLog = `✅ Episódio adicionado: ${episodeData.titulo}`;
+                    setProcessingLog(prev => [...prev, successLog]);
+                  } else {
+                    newStats.skipped++;
+                    const skipLog = `⏭️ Episódio já existe: ${seriesName} S${item.season}E${item.episode}`;
+                    setProcessingLog(prev => [...prev, skipLog]);
+                  }
+                }
+              }
+            }
+            
+            // If the series doesn't exist, create it
+            if (!isDuplicate) {
+              const seriesData = {
+                titulo: seriesName,
+                tipo: 'Serie',
+                poster: item.thumbnail || '',
+                categoria: item.group || 'Séries',
+                link: ''
+              };
+              
+              const newSeries = await api.createRow('contents', seriesData);
+              
+              if (newSeries && item.season && item.episode) {
+                const episodeData = {
+                  titulo: `${seriesName} S${item.season}E${item.episode}`,
+                  serie: seriesName,
+                  temporada: item.season,
+                  episodio: item.episode,
+                  link: item.url,
+                  conteudo_id: newSeries.id
+                };
+                
+                await api.createRow('episodes', episodeData);
+              }
+              
+              newStats.success++;
+              const successLog = `✅ Série e episódio adicionados: ${seriesName}`;
+              setProcessingLog(prev => [...prev, successLog]);
+            }
+          } else if (item.type === 'movie' || item.type === 'tv') {
+            // For movies and TV, check if content already exists
+            const searchResponse = await api.searchTable('contents', item.title, 1, 5);
+            
+            if (searchResponse.results && searchResponse.results.length > 0) {
+              // Check for exact match
+              const exactMatch = searchResponse.results.find(
+                (r: any) => r.titulo?.toLowerCase() === item.title.toLowerCase()
+              );
+              
+              if (exactMatch) {
+                isDuplicate = true;
+                newStats.skipped++;
+                const skipLog = `⏭️ Conteúdo já existe: ${item.title}`;
+                setProcessingLog(prev => [...prev, skipLog]);
+              }
+            }
+            
+            if (!isDuplicate) {
+              const contentData = {
+                titulo: item.title,
+                tipo: item.type === 'movie' ? 'Filme' : 'TV',
+                poster: item.thumbnail || '',
+                categoria: item.group || (item.type === 'movie' ? 'Filmes' : 'TV'),
+                link: item.url
+              };
+              
+              await api.createRow('contents', contentData);
+              newStats.success++;
+              const successLog = `✅ ${item.type === 'movie' ? 'Filme' : 'Canal TV'} adicionado: ${item.title}`;
+              setProcessingLog(prev => [...prev, successLog]);
+            }
+          }
+        } catch (error) {
+          console.error(`Erro ao processar item ${i}:`, error);
+          newStats.errors++;
+          const errorLog = `❌ Erro ao processar: ${item.title} - ${(error as Error).message}`;
+          setProcessingLog(prev => [...prev, errorLog]);
+        }
+        
+        // Update stats as we go
+        setStats({ ...newStats });
+      }
+      
+      toast.success(`Importação concluída: ${newStats.success} adicionados, ${newStats.skipped} ignorados`);
+    } catch (error) {
+      console.error('Erro durante a importação:', error);
+      toast.error(`Erro durante a importação: ${(error as Error).message}`);
+    } finally {
+      setIsProcessing(false);
     }
   };
   
@@ -528,52 +530,34 @@ function BulkUpload() {
             </p>
           </div>
           
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Acesso Restrito</AlertTitle>
-            <AlertDescription>
-              Este recurso é exclusivo para usuários Premium. Faça upgrade da sua conta para acessar.
-            </AlertDescription>
-          </Alert>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="text-amber-500" size={20} />
-                <span>Recurso Premium</span>
+          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+            <CardHeader className="border-b border-amber-200 dark:border-amber-800/40">
+              <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                <Lock className="h-5 w-5" />
+                Recurso Premium
               </CardTitle>
-              <CardDescription>
-                O Upload em Massa permite importar conteúdos diretamente de arquivos M3U, 
-                separando automaticamente filmes, séries e canais de TV.
+              <CardDescription className="text-amber-700 dark:text-amber-400">
+                Este recurso está disponível apenas para usuários Premium
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                <div className="p-8 flex flex-col items-center justify-center text-center">
-                  <div className="bg-amber-100 dark:bg-amber-900/30 p-3 rounded-full mb-4">
-                    <Upload className="h-8 w-8 text-amber-600 dark:text-amber-500" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">Importe Conteúdos em Massa</h3>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Adicione centenas de conteúdos de uma só vez, com detecção automática 
-                    de tipo, verificação de duplicatas e organização inteligente.
-                  </p>
-                </div>
+            <CardContent className="pt-6">
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg text-center space-y-4 border border-amber-200 dark:border-amber-800/40">
+                <Lock className="h-12 w-12 mx-auto text-amber-500" />
+                <h3 className="text-xl font-semibold text-amber-800 dark:text-amber-300">Acesso Restrito</h3>
+                <p className="text-amber-700 dark:text-amber-400">
+                  O Upload em Massa permite importar conteúdos diretamente de arquivos M3U, 
+                  separando automaticamente filmes, séries e canais de TV.
+                </p>
+                <ButtonExtended variant="premium" className="mt-4" disabled>
+                  Recurso Premium
+                </ButtonExtended>
               </div>
             </CardContent>
-            <CardFooter>
-              <Button className="w-full" variant="premium" disabled>
-                Disponível Apenas para Contas Premium
-              </Button>
-            </CardFooter>
           </Card>
         </div>
       </DashboardLayout>
     );
   }
-  
-  const itemCounts = countItemsByType(parsedItems);
-  const filteredItems = filterItemsByType(parsedItems);
   
   return (
     <DashboardLayout>
@@ -585,237 +569,388 @@ function BulkUpload() {
           </p>
         </div>
         
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload size={20} className="text-primary" />
-              <span>Importar Arquivo M3U</span>
-              <Badge variant="premium" className="ml-2">Premium</Badge>
-            </CardTitle>
-            <CardDescription>
-              Importe conteúdos de um arquivo M3U por URL ou enviando um arquivo
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={uploadTab} onValueChange={(v) => setUploadTab(v as 'url' | 'file')}>
-              <TabsList className="mb-4">
-                <TabsTrigger value="url">URL Remota</TabsTrigger>
-                <TabsTrigger value="file">Arquivo Local</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="url" className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Input
-                    placeholder="https://exemplo.com/playlist.m3u"
-                    value={m3uUrl}
-                    onChange={(e) => {
-                      setM3uUrl(e.target.value);
-                      if (urlError) setUrlError('');
-                    }}
-                    disabled={isLoading || uploading}
-                  />
-                  <Button 
-                    onClick={fetchM3UFromUrl} 
-                    disabled={isLoading || uploading || !m3uUrl}
-                    className="w-full sm:w-auto"
-                  >
-                    {isLoading ? 'Carregando...' : 'Carregar M3U'}
-                  </Button>
-                </div>
-                
-                {urlError && (
-                  <Alert variant="destructive" className="mt-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Erro</AlertTitle>
-                    <AlertDescription>{urlError}</AlertDescription>
-                  </Alert>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="file" className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <Input
-                      type="file"
-                      accept=".m3u,.m3u8,text/plain"
-                      ref={fileInputRef}
-                      onChange={handleFileUpload}
-                      disabled={isLoading || uploading}
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-        
-        {parsedItems.length > 0 && (
-          <>
+        <div className="grid gap-8 grid-cols-1 lg:grid-cols-12">
+          <div className="lg:col-span-5">
             <Card>
               <CardHeader>
-                <CardTitle>Conteúdos Encontrados</CardTitle>
+                <CardTitle>Fonte do Conteúdo</CardTitle>
                 <CardDescription>
-                  {parsedItems.length} itens encontrados no arquivo M3U
+                  Selecione como deseja carregar seu arquivo M3U
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="flex flex-col items-center justify-center bg-muted p-4 rounded-lg">
-                    <span className="text-3xl font-bold">{itemCounts.all}</span>
-                    <span className="text-sm text-muted-foreground">Total</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center bg-muted p-4 rounded-lg">
-                    <span className="text-3xl font-bold">{itemCounts.movie}</span>
-                    <span className="text-sm text-muted-foreground">Filmes</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center bg-muted p-4 rounded-lg">
-                    <span className="text-3xl font-bold">{itemCounts.series}</span>
-                    <span className="text-sm text-muted-foreground">Séries</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center bg-muted p-4 rounded-lg">
-                    <span className="text-3xl font-bold">{itemCounts.tv}</span>
-                    <span className="text-sm text-muted-foreground">TV</span>
-                  </div>
-                </div>
-                
-                <div className="mb-4">
-                  <Tabs defaultValue="all" value={viewTab} onValueChange={(v) => setViewTab(v as ContentType | 'all')}>
-                    <TabsList>
-                      <TabsTrigger value="all">Todos ({itemCounts.all})</TabsTrigger>
-                      <TabsTrigger value="movie">
-                        <Film size={16} className="mr-1" />
-                        Filmes ({itemCounts.movie})
-                      </TabsTrigger>
-                      <TabsTrigger value="series">
-                        <Laptop size={16} className="mr-1" />
-                        Séries ({itemCounts.series})
-                      </TabsTrigger>
-                      <TabsTrigger value="tv">
-                        <Tv size={16} className="mr-1" />
-                        TV ({itemCounts.tv})
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-                
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Título</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Categoria</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredItems.slice(0, 100).map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{item.title}</TableCell>
-                          <TableCell>
-                            {item.type === 'movie' && <Badge variant="outline">Filme</Badge>}
-                            {item.type === 'series' && <Badge variant="outline">Série</Badge>}
-                            {item.type === 'tv' && <Badge variant="outline">TV</Badge>}
-                            {item.type === 'unknown' && <Badge variant="outline">Desconhecido</Badge>}
-                          </TableCell>
-                          <TableCell>{item.groupTitle || '-'}</TableCell>
-                          <TableCell>
-                            {item.status === 'pending' && <Badge variant="outline">Aguardando</Badge>}
-                            {item.status === 'processed' && <Badge variant="secondary">Processando</Badge>}
-                            {item.status === 'uploaded' && <Badge variant="success">Enviado</Badge>}
-                            {item.status === 'duplicate' && <Badge variant="warning">Duplicado</Badge>}
-                            {item.status === 'error' && <Badge variant="destructive">Erro</Badge>}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {filteredItems.length > 100 && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
-                            Mostrando 100 de {filteredItems.length} itens
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-              <CardFooter className="flex flex-col sm:flex-row justify-between gap-4">
-                <div className="w-full sm:w-auto">
-                  <Button 
-                    onClick={startUpload} 
-                    disabled={isLoading || uploading || parsedItems.length === 0}
-                    className="w-full sm:w-auto"
-                  >
-                    {uploading ? 'Processando...' : 'Iniciar Upload'}
-                  </Button>
-                </div>
-                
-                {uploading && (
-                  <div className="w-full">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Progresso: {uploadProgress}%</span>
-                      <span>{processedCount} de {parsedItems.length}</span>
+                <Tabs defaultValue="url" value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="grid grid-cols-3 mb-4">
+                    <TabsTrigger value="url">URL</TabsTrigger>
+                    <TabsTrigger value="file">Arquivo</TabsTrigger>
+                    <TabsTrigger value="paste">Colar</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="url" className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="m3uUrl">URL do arquivo M3U</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="m3uUrl"
+                          placeholder="https://exemplo.com/lista.m3u"
+                          value={m3uUrl}
+                          onChange={(e) => setM3uUrl(e.target.value)}
+                          disabled={isProcessing}
+                        />
+                      </div>
                     </div>
-                    <Progress value={uploadProgress} className="h-2" />
-                  </div>
-                )}
-              </CardFooter>
-            </Card>
-            
-            {uploadedCount.total > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <CheckCircle size={20} className="text-green-500 mr-2" />
-                    Resumo do Upload
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="flex justify-center">
-                      <RadialProgress 
-                        value={uploadedCount.total} 
-                        max={parsedItems.length - duplicatesFound}
-                        size={180}
-                        thickness={16}
-                        color="var(--primary)"
+                    
+                    <Button 
+                      onClick={handleUrlFetch} 
+                      disabled={isProcessing || !m3uUrl}
+                      className="w-full"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Processando...
+                        </>
+                      ) : (
+                        <>
+                          <LinkIcon className="mr-2 h-4 w-4" />
+                          Buscar da URL
+                        </>
+                      )}
+                    </Button>
+                  </TabsContent>
+                  
+                  <TabsContent value="file" className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="m3uFile">Arquivo M3U</Label>
+                      <Input
+                        id="m3uFile"
+                        type="file"
+                        accept=".m3u,.m3u8,text/plain"
+                        onChange={handleFileChange}
+                        disabled={isProcessing}
+                        ref={fileInputRef}
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Formatos aceitos: .m3u, .m3u8
+                      </p>
+                    </div>
+                    
+                    <Button 
+                      onClick={handleFileProcess} 
+                      disabled={isProcessing || !uploadedFile}
+                      className="w-full"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Processando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Processar Arquivo
+                        </>
+                      )}
+                    </Button>
+                  </TabsContent>
+                  
+                  <TabsContent value="paste" className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="m3uContent">Conteúdo M3U</Label>
+                      <Textarea
+                        id="m3uContent"
+                        placeholder="#EXTM3U..."
+                        value={m3uContent}
+                        onChange={(e) => setM3uContent(e.target.value)}
+                        className="min-h-[200px]"
+                        disabled={isProcessing}
                       />
                     </div>
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="text-lg font-medium">Total Enviado</h3>
-                        <p className="text-3xl font-bold">{uploadedCount.total} itens</p>
-                        <p className="text-sm text-muted-foreground">
-                          {duplicatesFound} duplicatas ignoradas
-                        </p>
-                      </div>
+                    
+                    <Button 
+                      onClick={handleContentProcess} 
+                      disabled={isProcessing || !m3uContent}
+                      className="w-full"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Processando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Processar Conteúdo
+                        </>
+                      )}
+                    </Button>
+                  </TabsContent>
+                </Tabs>
+                
+                {error && (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Erro</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+              
+              {items.length > 0 && (
+                <CardFooter className="flex-col items-start gap-4 border-t px-6 py-4">
+                  <div className="w-full">
+                    <h3 className="font-medium mb-2">Estatísticas</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Total de itens:</div>
+                      <div className="font-medium">{stats.total}</div>
                       
-                      <Separator />
+                      <div>Filmes:</div>
+                      <div className="font-medium">{stats.movies}</div>
                       
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Filmes</p>
-                          <p className="text-xl font-semibold">{uploadedCount.movies}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Séries</p>
-                          <p className="text-xl font-semibold">{uploadedCount.series}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">TV</p>
-                          <p className="text-xl font-semibold">{uploadedCount.tv}</p>
-                        </div>
-                      </div>
+                      <div>Séries:</div>
+                      <div className="font-medium">{stats.series}</div>
+                      
+                      <div>TV:</div>
+                      <div className="font-medium">{stats.tv}</div>
+                      
+                      <div>Não identificados:</div>
+                      <div className="font-medium">{stats.unknown}</div>
                     </div>
+                  </div>
+                  
+                  <ButtonExtended 
+                    variant="premium" 
+                    size="lg" 
+                    className="w-full" 
+                    onClick={handleImport}
+                    disabled={isProcessing || items.length === 0}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Importar para o Banco de Dados
+                      </>
+                    )}
+                  </ButtonExtended>
+                </CardFooter>
+              )}
+            </Card>
+            
+            {processingLog.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader className="py-4">
+                  <CardTitle className="text-base">Log de Processamento</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[200px] p-4">
+                    <div className="space-y-1 text-sm font-mono">
+                      {processingLog.map((log, index) => (
+                        <div key={index} className="py-1 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+                {isProcessing && stats.processed > 0 && (
+                  <CardFooter className="py-3 border-t">
+                    <div className="w-full space-y-1">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Progresso: {stats.processed} de {stats.total}</span>
+                        <span>{Math.round((stats.processed / stats.total) * 100)}%</span>
+                      </div>
+                      <Progress value={(stats.processed / stats.total) * 100} className="h-2" />
+                    </div>
+                  </CardFooter>
+                )}
+              </Card>
+            )}
+          </div>
+          
+          <div className="lg:col-span-7">
+            {items.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle>Conteúdos Encontrados</CardTitle>
+                      <CardDescription>
+                        {filteredItems.length} itens
+                      </CardDescription>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      <Badge 
+                        onClick={() => setFilterType('all')} 
+                        className={`cursor-pointer ${filterType === 'all' ? 'bg-primary' : 'bg-secondary hover:bg-primary/80'}`}
+                      >
+                        Todos ({items.length})
+                      </Badge>
+                      <Badge 
+                        onClick={() => setFilterType('movie')} 
+                        className={`cursor-pointer ${filterType === 'movie' ? 'bg-primary' : 'bg-secondary hover:bg-primary/80'}`}
+                      >
+                        Filmes ({stats.movies})
+                      </Badge>
+                      <Badge 
+                        onClick={() => setFilterType('series')} 
+                        className={`cursor-pointer ${filterType === 'series' ? 'bg-primary' : 'bg-secondary hover:bg-primary/80'}`}
+                      >
+                        Séries ({stats.series})
+                      </Badge>
+                      <Badge 
+                        onClick={() => setFilterType('tv')} 
+                        className={`cursor-pointer ${filterType === 'tv' ? 'bg-primary' : 'bg-secondary hover:bg-primary/80'}`}
+                      >
+                        TV ({stats.tv})
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-4">
+                    <Alert className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+                      <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <AlertTitle className="text-blue-800 dark:text-blue-300">Dica</AlertTitle>
+                      <AlertDescription className="text-blue-700 dark:text-blue-400">
+                        Filmes são importados diretamente para a tabela de conteúdos. Séries são importadas como conteúdos e seus episódios são adicionados à tabela de episódios.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Título</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Grupo</TableHead>
+                          <TableHead className="hidden sm:table-cell">URL</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center">
+                              Nenhum item encontrado
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredItems.slice(0, 100).map((item, index) => (
+                            <TableRow key={index}>
+                              <TableCell className="font-medium">{item.title}</TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  item.type === 'movie' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
+                                  item.type === 'series' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
+                                  item.type === 'tv' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                                  'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                                }>
+                                  {item.type === 'movie' ? 'Filme' : 
+                                   item.type === 'series' ? 'Série' : 
+                                   item.type === 'tv' ? 'TV' : 'Desconhecido'}
+                                </Badge>
+                                {item.type === 'series' && item.season && item.episode && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    S{item.season}E{item.episode}
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>{item.group || '-'}</TableCell>
+                              <TableCell className="hidden sm:table-cell truncate max-w-[200px]">{item.url}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                        
+                        {filteredItems.length > 100 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-2">
+                              Mostrando 100 de {filteredItems.length} itens
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+                
+                <CardFooter className="flex justify-between border-t pt-4">
+                  <div className="flex gap-2">
+                    <ButtonExtended 
+                      variant="success"
+                      size="sm"
+                      disabled={isProcessing || stats.processed === 0 || stats.success === 0}
+                    >
+                      <CheckCircle2 className="mr-1 h-4 w-4" />
+                      {stats.success} Adicionados
+                    </ButtonExtended>
+                    
+                    <ButtonExtended 
+                      variant="warning"
+                      size="sm"
+                      disabled={isProcessing || stats.processed === 0 || stats.skipped === 0}
+                    >
+                      <XCircle className="mr-1 h-4 w-4" />
+                      {stats.skipped} Ignorados
+                    </ButtonExtended>
+                  </div>
+                </CardFooter>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Conteúdos Encontrados</CardTitle>
+                  <CardDescription>
+                    Carregue um arquivo M3U para visualizar os conteúdos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <div className="text-center">
+                    <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Nenhum conteúdo carregado</h3>
+                    <p className="text-muted-foreground max-w-md mx-auto">
+                      Utilize uma das opções ao lado para carregar um arquivo M3U.
+                      Após o processamento, os conteúdos serão exibidos aqui.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
             )}
-          </>
-        )}
+            
+            <Accordion type="single" collapsible className="mt-4">
+              <AccordionItem value="item-1">
+                <AccordionTrigger className="text-sm font-medium">
+                  Sobre o formato M3U
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground">
+                  <p className="mb-2">
+                    M3U é um formato de arquivo de lista de reprodução usado para mídia.
+                    O sistema suporta arquivos M3U padrão com a seguinte estrutura:
+                  </p>
+                  <pre className="bg-muted p-2 rounded-md overflow-x-auto text-xs my-2">
+                    {`#EXTM3U
+#EXTINF:-1 group-title="Filmes",Título do Filme
+http://exemplo.com/filme.mp4
+#EXTINF:-1 group-title="Séries",Nome da Série S01E01
+http://exemplo.com/serie/s01e01.mp4`}
+                  </pre>
+                  <p>
+                    O sistema tentará identificar automaticamente se o conteúdo é um filme, 
+                    série ou canal de TV com base no título e nas informações do grupo.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );
-}
+};
 
 export default BulkUpload;

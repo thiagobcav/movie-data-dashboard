@@ -1,291 +1,241 @@
+import axios, { AxiosRequestConfig } from 'axios';
 
-import { toast } from 'sonner';
+// Armazenar logs para depuração
+const apiLogs: LogEntry[] = [];
+const MAX_LOGS = 100;
 
-export type TableType = 
-  | 'contents' 
-  | 'episodes' 
-  | 'banners' 
-  | 'categories' 
-  | 'users' 
-  | 'sessions' 
-  | 'platforms';
+export interface LogEntry {
+  timestamp: string;
+  type: 'info' | 'error' | 'warning' | 'success';
+  message: string;
+  details?: any;
+}
+
+export const addLog = (type: LogEntry['type'], message: string, details?: any) => {
+  const entry: LogEntry = {
+    timestamp: new Date().toISOString(),
+    type,
+    message,
+    details
+  };
+  
+  apiLogs.unshift(entry);
+  
+  // Manter um número máximo de logs
+  if (apiLogs.length > MAX_LOGS) {
+    apiLogs.pop();
+  }
+  
+  // Não logar detalhes sensíveis no console
+  console[type === 'error' ? 'error' : type === 'warning' ? 'warn' : 'log'](
+    `[${entry.timestamp}] ${message}`
+  );
+  
+  return entry;
+};
+
+export const getLogs = () => {
+  return [...apiLogs];
+};
+
+export const clearLogs = () => {
+  apiLogs.length = 0;
+};
 
 interface ApiConfig {
   apiToken: string;
   baseUrl: string;
-  tableIds: Record<TableType, string>;
+  tableIds: Record<string, string>;
 }
 
-export class BaserowApi {
-  private apiToken: string;
-  private baseUrl: string;
-  private tableIds: Record<TableType, string>;
-  private proxyUrl: string = "https://script.google.com/macros/s/AKfycbymxuIli4v1MHzIr-6vhm2IsRZOoGM2QetJqCGwPhqltBxAMXX-Yp5bbK8esK4GlLLs9g/exec";
+// Modifica o comportamento do console.log para evitar exposição de Headers
+const originalConsoleLog = console.log;
+const originalConsoleInfo = console.info;
+const originalConsoleWarn = console.warn;
+const originalConsoleError = console.error;
 
-  constructor(config: ApiConfig) {
-    this.apiToken = config.apiToken;
-    this.baseUrl = config.baseUrl;
-    this.tableIds = config.tableIds;
-  }
-
-  private async request(endpoint: string, options: RequestInit = {}) {
-    if (!this.apiToken) {
-      toast.error('API Token não configurado');
-      throw new Error('API Token não configurado');
-    }
-
-    const directUrl = `${this.baseUrl}/${endpoint}`;
-    const isHttpUrl = this.baseUrl.startsWith('http:');
-    const isMixedContent = typeof window !== 'undefined' && 
-        window.location.protocol === 'https:' && 
-        isHttpUrl;
-    
-    try {
-      // Determine if we need to use the proxy
-      if (isMixedContent) {
-        // Log that we're using the proxy
-        console.log('Usando proxy para contornar restrições de conteúdo misto');
-        
-        // Encode the full URL for the proxy
-        const fullUrl = `${directUrl}`;
-        const encodedUrl = encodeURIComponent(fullUrl);
-        
-        // Determine the request method (default to GET if not specified)
-        const method = options.method || 'GET';
-        
-        // Build the base proxy request URL
-        let proxyRequestUrl = `${this.proxyUrl}?token=${this.apiToken}&url=${encodedUrl}&method=${method}`;
-        
-        // Add the body parameter for POST, PATCH, DELETE methods if needed
-        let bodyParam = '';
-        if ((method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE') && options.body) {
-          bodyParam = `&body=${encodeURIComponent(options.body as string)}`;
-        }
-        
-        // Build the final URL with all parameters
-        const finalProxyUrl = proxyRequestUrl + bodyParam;
-        
-        console.log(`Enviando requisição ${method} para o proxy:`, finalProxyUrl);
-        
-        const response = await fetch(finalProxyUrl);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error via proxy: ${response.status}`);
-        }
-        
-        return await response.json();
-      } 
-      // Direct request (no proxy needed)
-      else {
-        console.log('Enviando requisição direta para:', directUrl);
-        
-        const defaultOptions: RequestInit = {
-          headers: {
-            'Authorization': `Token ${this.apiToken}`,
-            'Content-Type': 'application/json',
-          },
-        };
-        
-        const response = await fetch(directUrl, {
-          ...defaultOptions,
-          ...options,
-          headers: {
-            ...defaultOptions.headers,
-            ...(options.headers || {}),
-          },
-        });
-        
-        if (!response.ok) {
-          const contentType = response.headers.get('content-type');
-          let errorData: any = {};
-          
-          if (contentType && contentType.includes('application/json')) {
-            errorData = await response.json().catch(() => ({}));
-          } else {
-            const text = await response.text().catch(() => '');
-            errorData = { error: text || `HTTP error ${response.status}` };
-          }
-          
-          console.error('API error details:', errorData);
-          
-          if (errorData.errors) {
-            const errorDetails = Object.entries(errorData.errors)
-              .map(([field, messages]) => `${field}: ${messages}`)
-              .join(', ');
-            throw new Error(`Erro de validação: ${errorDetails}`);
-          }
-          
-          throw new Error(errorData.error || errorData.detail || `HTTP error ${response.status}`);
-        }
-
-        // Verifica se a resposta contém JSON
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          return await response.json();
-        }
-        
-        // Se não for JSON, retorna o texto
-        return await response.text();
-      }
-    } catch (error) {
-      console.error('API request failed:', error);
-      
-      if ((error as Error).message.includes('Failed to fetch') ||
-          (error as Error).message.includes('NetworkError') ||
-          (error as Error).message.includes('Network request failed')) {
-        
-        if (isMixedContent) {
-          toast.error('Erro ao acessar API via proxy.', {
-            description: 'Verifique se o URL e token estão corretos.'
-          });
-        } else {
-          toast.error('Erro de conexão com a API.', {
-            description: 'Verifique se a URL da API está correta e se o servidor está acessível.'
-          });
-        }
-      } else {
-        toast.error(`Erro na requisição: ${(error as Error).message}`);
+const sanitizeLogArgs = (args: any[]) => {
+  return args.map(arg => {
+    // Se for um objeto, verificar se tem propriedades sensíveis
+    if (arg && typeof arg === 'object') {
+      // Se for um objeto Headers, substituir
+      if (arg.constructor && arg.constructor.name === 'Headers') {
+        return '[Headers: ***]';
       }
       
-      throw error;
-    }
-  }
-
-  /**
-   * Obtém linhas de uma tabela com suporte para paginação, ordenação e pesquisa
-   * @param tableType Tipo da tabela
-   * @param page Número da página (começa em 1)
-   * @param pageSize Tamanho da página
-   * @param queryParams Parâmetros adicionais (order_by, search)
-   * @returns Resposta da API
-   */
-  async getTableRows(tableType: TableType, page = 1, pageSize = 20, queryParams?: string) {
-    const tableId = this.tableIds[tableType];
-    
-    if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
-      throw new Error(`Table ID for ${tableType} not configured`);
-    }
-
-    let endpoint = `database/rows/table/${tableId}/?user_field_names=true&page=${page}&size=${pageSize}`;
-    
-    // Add query parameters if provided
-    if (queryParams) {
-      // Verifica se os parâmetros já começam com & (para não duplicar)
-      if (queryParams.startsWith('&')) {
-        endpoint += queryParams;
-      } else if (queryParams.startsWith('order_by') || queryParams.startsWith('search')) {
-        endpoint += `&${queryParams}`;
-      } else {
-        endpoint += `&${queryParams}`;
-      }
-    }
-
-    return this.request(endpoint);
-  }
-
-  async createRow(tableType: TableType, data: Record<string, any>) {
-    const tableId = this.tableIds[tableType];
-    
-    if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
-      throw new Error(`Table ID for ${tableType} not configured`);
-    }
-
-    // Certifique-se de que os dados estão no formato correto
-    const cleanedData = this.sanitizeData(data);
-
-    return this.request(`database/rows/table/${tableId}/?user_field_names=true`, {
-      method: 'POST',
-      body: JSON.stringify(cleanedData),
-    });
-  }
-
-  async updateRow(tableType: TableType, rowId: number, data: Record<string, any>) {
-    const tableId = this.tableIds[tableType];
-    
-    if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
-      throw new Error(`Table ID for ${tableType} not configured`);
-    }
-
-    // Certifique-se de que os dados estão no formato correto
-    const cleanedData = this.sanitizeData(data);
-
-    return this.request(`database/rows/table/${tableId}/${rowId}/?user_field_names=true`, {
-      method: 'PATCH',
-      body: JSON.stringify(cleanedData),
-    });
-  }
-
-  async deleteRow(tableType: TableType, rowId: number) {
-    const tableId = this.tableIds[tableType];
-    
-    if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
-      throw new Error(`Table ID for ${tableType} not configured`);
-    }
-
-    return this.request(`database/rows/table/${tableId}/${rowId}/`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Função para limpar e validar os dados antes de enviar para a API
-  private sanitizeData(data: Record<string, any>): Record<string, any> {
-    const cleanedData = { ...data };
-    
-    // Remover campos `id` e `order` que não devem ser enviados
-    delete cleanedData.id;
-    delete cleanedData.order;
-    
-    // Garante que as datas estão no formato YYYY-MM-DD
-    if (cleanedData.Pagamento) {
-      try {
-        // Se já for uma string no formato YYYY-MM-DD, não faz nada
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanedData.Pagamento)) {
-          const date = new Date(cleanedData.Pagamento);
-          if (isNaN(date.getTime())) {
-            throw new Error('Data inválida');
-          }
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          cleanedData.Pagamento = `${year}-${month}-${day}`;
-        }
-      } catch (e) {
-        console.error('Erro ao formatar data:', e);
-        // Em caso de erro, deixa como está
+      // Se for um objeto com headers ou authorization
+      if (arg.headers || arg.Authorization || arg.authorization) {
+        const sanitized = { ...arg };
+        if (sanitized.headers) sanitized.headers = '[Headers: ***]';
+        if (sanitized.Authorization) sanitized.Authorization = '***';
+        if (sanitized.authorization) sanitized.authorization = '***';
+        return sanitized;
       }
     }
     
-    // Garante que campos numéricos sejam números
-    if ('Dias' in cleanedData && typeof cleanedData.Dias !== 'number') {
-      cleanedData.Dias = parseInt(cleanedData.Dias) || 0;
+    // Se for uma string com token
+    if (typeof arg === 'string' && 
+        (arg.includes('Authorization: Bearer') || 
+         arg.includes('token=') || 
+         arg.includes('apiKey='))) {
+      return arg.replace(/Bearer [a-zA-Z0-9._-]+/g, 'Bearer ***')
+               .replace(/token=[a-zA-Z0-9._-]+/g, 'token=***')
+               .replace(/apiKey=[a-zA-Z0-9._-]+/g, 'apiKey=***');
     }
     
-    if ('Logins' in cleanedData && typeof cleanedData.Logins !== 'number') {
-      cleanedData.Logins = parseInt(cleanedData.Logins) || 0;
-    }
-    
-    // Certifique-se de que o IMEI seja uma string JSON válida
-    if (cleanedData.IMEI && typeof cleanedData.IMEI === 'string') {
-      try {
-        // Verifica se já é um JSON válido
-        JSON.parse(cleanedData.IMEI);
-      } catch (e) {
-        // Se não for um JSON válido, converte para um JSON válido
-        cleanedData.IMEI = JSON.stringify({
-          IMEI: cleanedData.IMEI,
-          Dispositivo: ''
-        });
-      }
-    }
-    
-    return cleanedData;
-  }
-}
+    return arg;
+  });
+};
+
+// Sobrescrever funções do console
+console.log = function(...args) {
+  originalConsoleLog.apply(console, sanitizeLogArgs(args));
+};
+
+console.info = function(...args) {
+  originalConsoleInfo.apply(console, sanitizeLogArgs(args));
+};
+
+console.warn = function(...args) {
+  originalConsoleWarn.apply(console, sanitizeLogArgs(args));
+};
+
+console.error = function(...args) {
+  originalConsoleError.apply(console, sanitizeLogArgs(args));
+};
 
 export const createApi = (config: ApiConfig) => {
-  return new BaserowApi(config);
+  const instance = axios.create({
+    baseURL: config.baseUrl,
+    headers: {
+      'Authorization': `Token ${config.apiToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  // Interceptar requisições para adicionar logs sem expor dados sensíveis
+  instance.interceptors.request.use(
+    (config) => {
+      // Removemos header da mensagem de log
+      const sanitizedConfig = { ...config };
+      delete sanitizedConfig.headers;
+      
+      addLog('info', `Requisição iniciada: ${config.method?.toUpperCase()} ${config.url}`, {
+        method: config.method,
+        url: config.url,
+        params: config.params
+      });
+      
+      return config;
+    },
+    (error) => {
+      addLog('error', `Erro ao preparar requisição: ${error.message}`, {
+        error: error.message
+      });
+      return Promise.reject(error);
+    }
+  );
+
+  // Interceptar respostas para registrar logs
+  instance.interceptors.response.use(
+    (response) => {
+      addLog('success', `Requisição bem-sucedida: ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+        status: response.status,
+        statusText: response.statusText,
+        dataLength: response.data ? JSON.stringify(response.data).length : 0
+      });
+      
+      return response;
+    },
+    (error) => {
+      const errorMessage = error.response 
+        ? `Erro na requisição: ${error.response.status} ${error.response.statusText}`
+        : `Erro na requisição: ${error.message}`;
+        
+      addLog('error', errorMessage, {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: error.message,
+        url: error.config?.url,
+        method: error.config?.method
+      });
+      
+      return Promise.reject(error);
+    }
+  );
+
+  // Métodos da API
+  return {
+    getTableRows: async (table: string, page: number = 1, size: number = 10) => {
+      try {
+        const tableId = config.tableIds[table];
+        const response = await instance.get(`/database/rows/table/${tableId}/?page=${page}&size=${size}`);
+        return response.data;
+      } catch (error: any) {
+        console.error(`Error fetching ${table} table rows:`, error);
+        addLog('error', `Erro ao buscar linhas da tabela ${table}: ${error.message}`);
+        throw error;
+      }
+    },
+
+    searchTable: async (table: string, searchTerm: string, page: number = 1, size: number = 10) => {
+      try {
+        const tableId = config.tableIds[table];
+        const response = await instance.get(`/database/rows/table/${tableId}/?search=${searchTerm}&page=${page}&size=${size}`);
+        return response.data;
+      } catch (error: any) {
+        console.error(`Error searching ${table} table:`, error);
+        addLog('error', `Erro ao pesquisar na tabela ${table}: ${error.message}`);
+        throw error;
+      }
+    },
+
+    getRow: async (table: string, rowId: string) => {
+      try {
+        const tableId = config.tableIds[table];
+        const response = await instance.get(`/database/rows/table/${tableId}/${rowId}/`);
+        return response.data;
+      } catch (error: any) {
+        console.error(`Error fetching row ${rowId} from ${table} table:`, error);
+        addLog('error', `Erro ao buscar linha ${rowId} da tabela ${table}: ${error.message}`);
+        throw error;
+      }
+    },
+
+    createRow: async (table: string, data: any) => {
+      try {
+        const tableId = config.tableIds[table];
+        const response = await instance.post(`/database/rows/table/${tableId}/`, data);
+        return response.data;
+      } catch (error: any) {
+        console.error(`Error creating row in ${table} table:`, error);
+        addLog('error', `Erro ao criar linha na tabela ${table}: ${error.message}`);
+        throw error;
+      }
+    },
+
+    updateRow: async (table: string, rowId: string, data: any) => {
+      try {
+        const tableId = config.tableIds[table];
+        const response = await instance.patch(`/database/rows/table/${tableId}/${rowId}/`, data);
+        return response.data;
+      } catch (error: any) {
+        console.error(`Error updating row ${rowId} in ${table} table:`, error);
+        addLog('error', `Erro ao atualizar linha ${rowId} na tabela ${table}: ${error.message}`);
+        throw error;
+      }
+    },
+
+    deleteRow: async (table: string, rowId: string) => {
+      try {
+        const tableId = config.tableIds[table];
+        const response = await instance.delete(`/database/rows/table/${tableId}/${rowId}/`);
+        return response.data;
+      } catch (error: any) {
+        console.error(`Error deleting row ${rowId} from ${table} table:`, error);
+        addLog('error', `Erro ao deletar linha ${rowId} da tabela ${table}: ${error.message}`);
+        throw error;
+      }
+    },
+  };
 };
