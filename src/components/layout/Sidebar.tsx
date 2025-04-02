@@ -3,8 +3,10 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Menu, Home, Box, FilmIcon, LayoutGrid, Users, Settings, FileWarning, Upload, ImageIcon } from 'lucide-react';
+import { X, Menu, Home, Box, FilmIcon, LayoutGrid, Users, Settings, FileWarning, Upload, ImageIcon, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SidebarProps {
   isMobile: boolean;
@@ -51,7 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
       icon: <ImageIcon size={18} /> 
     },
     {
-      href: '/bulk-upload',
+      href: isPremium ? '/bulk-upload' : '#',
       label: 'Upload em Massa',
       icon: <Upload size={18} />,
       isPremium: true
@@ -65,30 +67,39 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
 
   const duplicateItems = [
     {
-      href: '/duplicates/contents',
+      href: isPremium ? '/duplicates/contents' : '#',
       label: 'Conteúdos Duplicados',
-      icon: <FileWarning size={18} />
+      icon: <FileWarning size={18} />,
+      isPremium: true
     },
     {
-      href: '/duplicates/episodes',
+      href: isPremium ? '/duplicates/episodes' : '#',
       label: 'Episódios Duplicados',
-      icon: <FileWarning size={18} />
+      icon: <FileWarning size={18} />,
+      isPremium: true
     }
   ];
 
   // Classes
   const sidebarClasses = cn(
-    "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 ease-in-out",
+    "fixed inset-y-0 left-0 z-[49] w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 ease-in-out",
     isMobile && !isOpen ? "-translate-x-full" : "translate-x-0"
   );
   
   const overlayClasses = cn(
-    "fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300",
+    "fixed inset-0 bg-black/50 z-[48] lg:hidden transition-opacity duration-300",
     isMobile && isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
   );
   
   const navItemClasses = "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700";
   const activeItemClasses = "bg-gray-100 dark:bg-gray-700 text-primary";
+  const disabledItemClasses = "opacity-75 cursor-not-allowed";
+
+  const handlePremiumItemClick = (e: React.MouseEvent, isPremiumItem: boolean) => {
+    if (isPremiumItem && !isPremium) {
+      e.preventDefault();
+    }
+  };
 
   return (
     <>
@@ -110,29 +121,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
         </div>
         
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          {navItems.map((item) => {
-            // Skip premium items if user doesn't have premium
-            if (item.isPremium && !isPremium) return null;
-            
-            return (
-              <Link 
-                key={item.href} 
-                to={item.href}
-                className={cn(
-                  navItemClasses,
-                  location.pathname === item.href && activeItemClasses
+          {navItems.map((item) => (
+            <TooltipProvider key={item.href}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link 
+                    to={item.href}
+                    className={cn(
+                      navItemClasses,
+                      location.pathname === item.href && activeItemClasses,
+                      item.isPremium && !isPremium && disabledItemClasses
+                    )}
+                    onClick={(e) => handlePremiumItemClick(e, item.isPremium || false)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                    {item.isPremium && (
+                      <>
+                        {isPremium ? (
+                          <Badge className="ml-auto text-xs bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full">
+                            Premium
+                          </Badge>
+                        ) : (
+                          <Lock size={16} className="ml-auto text-amber-500" />
+                        )}
+                      </>
+                    )}
+                  </Link>
+                </TooltipTrigger>
+                {item.isPremium && !isPremium && (
+                  <TooltipContent>
+                    <p>Recurso exclusivo para usuários Premium</p>
+                  </TooltipContent>
                 )}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-                {item.isPremium && (
-                  <span className="ml-auto text-xs bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full">
-                    Premium
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+              </Tooltip>
+            </TooltipProvider>
+          ))}
           
           <div className="pt-2 pb-1">
             <p className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
@@ -141,17 +165,32 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
           </div>
           
           {duplicateItems.map((item) => (
-            <Link 
-              key={item.href} 
-              to={item.href}
-              className={cn(
-                navItemClasses,
-                location.pathname === item.href && activeItemClasses
-              )}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </Link>
+            <TooltipProvider key={item.href}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link 
+                    to={item.href}
+                    className={cn(
+                      navItemClasses,
+                      location.pathname === item.href && activeItemClasses,
+                      item.isPremium && !isPremium && disabledItemClasses
+                    )}
+                    onClick={(e) => handlePremiumItemClick(e, item.isPremium || false)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                    {item.isPremium && !isPremium && (
+                      <Lock size={16} className="ml-auto text-amber-500" />
+                    )}
+                  </Link>
+                </TooltipTrigger>
+                {item.isPremium && !isPremium && (
+                  <TooltipContent>
+                    <p>Recurso exclusivo para usuários Premium</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           ))}
         </nav>
         

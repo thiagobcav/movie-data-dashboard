@@ -1,6 +1,7 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
+import { encrypt, decrypt } from '@/utils/encryption';
 
 interface User {
   Nome: string;
@@ -21,9 +22,13 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   verifyAccess: () => Promise<boolean>;
+  isPremiumFeatureAvailable: (feature: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const STORAGE_KEY = 'auth_user_secure';
+const API_TOKEN = '9HJjNCWkRnJDxwYZHLYG9sHgLEu2Pbar';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -48,14 +53,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isPremiumFeatureAvailable = (feature: string): boolean => {
+    if (!user) return false;
+    
+    // First check if user is active
+    if (!user.Ativo) return false;
+    
+    // For premium features, check if user has premium status
+    const premiumFeatures = ['bulk-upload', 'duplicates'];
+    if (premiumFeatures.includes(feature)) {
+      return user.Premium === true;
+    }
+    
+    // For basic features, just being active is enough
+    return true;
+  };
+
   const verifyAccess = async (): Promise<boolean> => {
-    const storedUser = localStorage.getItem('auth_user');
-    if (!storedUser) return false;
+    const storedEncryptedUser = localStorage.getItem(STORAGE_KEY);
+    if (!storedEncryptedUser) return false;
 
     try {
-      const userData = JSON.parse(storedUser);
+      const decryptedUser = decrypt(storedEncryptedUser);
+      const userData = JSON.parse(decryptedUser);
       
-      // Verify user is still active and has remaining days
+      // Verify user is still active
       const encodedFilter = encodeURIComponent(JSON.stringify({
         filter_type: "AND",
         filters: [{
@@ -71,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         {
           method: 'GET',
           headers: {
-            'Authorization': 'Token 9HJjNCWkRnJDxwYZHLYG9sHgLEu2Pbar'
+            'Authorization': `Token ${API_TOKEN}`
           }
         }
       );
@@ -96,22 +118,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      // Calculate remaining days
-      const remainingDays = formatRemainingDays(updatedUserData.Restantes, updatedUserData.Dias);
-      
-      if (remainingDays <= 0) {
-        console.error('Subscription has expired');
-        return false;
-      }
-      
-      // Update the user data in localStorage with the latest data
+      // Update the user data with the latest data
       const formattedUser = {
         ...updatedUserData,
-        Restam: remainingDays
+        Restam: formatRemainingDays(updatedUserData.Restantes, updatedUserData.Dias)
       };
       
       setUser(formattedUser);
-      localStorage.setItem('auth_user', JSON.stringify(formattedUser));
+      localStorage.setItem(STORAGE_KEY, encrypt(JSON.stringify(formattedUser)));
       
       return true;
     } catch (error) {
@@ -122,23 +136,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   useEffect(() => {
     // Check if user is already logged in
-    const storedUser = localStorage.getItem('auth_user');
-    if (storedUser) {
+    const storedEncryptedUser = localStorage.getItem(STORAGE_KEY);
+    if (storedEncryptedUser) {
       try {
-        const parsedUser = JSON.parse(storedUser);
+        const decryptedUser = decrypt(storedEncryptedUser);
+        const parsedUser = JSON.parse(decryptedUser);
         setUser(parsedUser);
         setIsAuthenticated(true);
         
         // Verify access immediately when app loads
         verifyAccess().then(hasAccess => {
           if (!hasAccess) {
-            toast.error('Seu acesso expirou ou foi desativado');
+            toast.error('Seu acesso foi desativado');
             logout();
           }
         });
       } catch (error) {
         console.error('Failed to parse stored user data:', error);
-        localStorage.removeItem('auth_user');
+        localStorage.removeItem(STORAGE_KEY);
       }
     }
     
@@ -147,7 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isAuthenticated) {
         verifyAccess().then(hasAccess => {
           if (!hasAccess) {
-            toast.error('Seu acesso expirou ou foi desativado');
+            toast.error('Seu acesso foi desativado');
             logout();
           }
         });
@@ -177,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         {
           method: 'GET',
           headers: {
-            'Authorization': 'Token 9HJjNCWkRnJDxwYZHLYG9sHgLEu2Pbar'
+            'Authorization': `Token ${API_TOKEN}`
           }
         }
       );
@@ -196,28 +211,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const userData = data.results[0];
       
-      // Check if user is active
+      // Check if user is active - This is the only requirement for basic access
       if (!userData.Ativo) {
         toast.error('Usuário não está ativo');
         return false;
       }
       
-      // Calculate remaining days (Dias - Restantes)
+      // Calculate remaining days for display purposes
       const remainingDays = formatRemainingDays(userData.Restantes, userData.Dias);
       const formattedUser = {
         ...userData,
         Restam: remainingDays
       };
       
-      if (remainingDays <= 0) {
-        toast.error('Sua assinatura expirou');
-        return false;
-      }
-      
-      // Save user to state and localStorage
+      // Save user to state and localStorage (encrypted)
       setUser(formattedUser);
       setIsAuthenticated(true);
-      localStorage.setItem('auth_user', JSON.stringify(formattedUser));
+      localStorage.setItem(STORAGE_KEY, encrypt(JSON.stringify(formattedUser)));
       
       toast.success(`Bem-vindo, ${userData.Nome}`);
       return true;
@@ -233,12 +243,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('auth_user');
+    localStorage.removeItem(STORAGE_KEY);
     toast.info('Você saiu do sistema');
   };
   
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, isLoading, verifyAccess }}>
+    <AuthContext.Provider value={{ 
+      isAuthenticated, 
+      user, 
+      login, 
+      logout, 
+      isLoading, 
+      verifyAccess,
+      isPremiumFeatureAvailable 
+    }}>
       {children}
     </AuthContext.Provider>
   );
