@@ -3,7 +3,11 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { X, Menu, Home, Box, FilmIcon, LayoutGrid, Users, Settings, FileWarning, Upload, ImageIcon, Lock } from 'lucide-react';
+import { 
+  X, Menu, Home, Box, FilmIcon, LayoutGrid, Users, 
+  Settings, FileWarning, Upload, ImageIcon, Lock, 
+  ChevronLeft, ChevronRight
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -11,10 +15,18 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 interface SidebarProps {
   isMobile: boolean;
   isOpen: boolean;
+  isMinimized: boolean;
   onToggle: () => void;
+  onToggleMinimize: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  isMobile, 
+  isOpen, 
+  isMinimized, 
+  onToggle, 
+  onToggleMinimize 
+}) => {
   const location = useLocation();
   const { user } = useAuth();
   
@@ -82,8 +94,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
 
   // Classes
   const sidebarClasses = cn(
-    "fixed inset-y-0 left-0 z-[49] w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 ease-in-out",
-    isMobile && !isOpen ? "-translate-x-full" : "translate-x-0"
+    "fixed inset-y-0 left-0 z-[49] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ease-in-out",
+    isMobile && !isOpen 
+      ? "-translate-x-full" 
+      : "translate-x-0",
+    !isMobile && isMinimized 
+      ? "w-16" 
+      : "w-64"
   );
   
   const overlayClasses = cn(
@@ -112,10 +129,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
       {/* Sidebar */}
       <aside className={sidebarClasses}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold">Painel Admin</h2>
-          {isMobile && (
+          {!isMinimized && (
+            <h2 className="text-xl font-semibold">Painel Admin</h2>
+          )}
+          
+          {isMobile ? (
             <Button variant="ghost" size="icon" onClick={onToggle}>
               <X size={20} />
+            </Button>
+          ) : (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onToggleMinimize} 
+              className={cn(isMinimized && "mx-auto")}
+            >
+              {isMinimized ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
             </Button>
           )}
         </div>
@@ -130,28 +159,36 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
                     className={cn(
                       navItemClasses,
                       location.pathname === item.href && activeItemClasses,
-                      item.isPremium && !isPremium && disabledItemClasses
+                      item.isPremium && !isPremium && disabledItemClasses,
+                      isMinimized && 'justify-center px-2'
                     )}
                     onClick={(e) => handlePremiumItemClick(e, item.isPremium || false)}
                   >
                     {item.icon}
-                    <span>{item.label}</span>
-                    {item.isPremium && (
+                    {!isMinimized && (
                       <>
-                        {isPremium ? (
-                          <Badge className="ml-auto text-xs bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full">
-                            Premium
-                          </Badge>
-                        ) : (
-                          <Lock size={16} className="ml-auto text-amber-500" />
+                        <span>{item.label}</span>
+                        {item.isPremium && (
+                          <>
+                            {isPremium ? (
+                              <Badge className="ml-auto text-xs bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full">
+                                Premium
+                              </Badge>
+                            ) : (
+                              <Lock size={16} className="ml-auto text-amber-500" />
+                            )}
+                          </>
                         )}
                       </>
                     )}
                   </Link>
                 </TooltipTrigger>
-                {item.isPremium && !isPremium && (
-                  <TooltipContent>
-                    <p>Recurso exclusivo para usuários Premium</p>
+                {(isMinimized || (item.isPremium && !isPremium)) && (
+                  <TooltipContent side="right">
+                    <p>{item.label}</p>
+                    {item.isPremium && !isPremium && (
+                      <p className="text-xs text-amber-500">Recurso Premium</p>
+                    )}
                   </TooltipContent>
                 )}
               </Tooltip>
@@ -159,9 +196,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
           ))}
           
           <div className="pt-2 pb-1">
-            <p className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-              Manutenção
-            </p>
+            {!isMinimized && (
+              <p className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+                Manutenção
+              </p>
+            )}
           </div>
           
           {duplicateItems.map((item) => (
@@ -173,20 +212,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
                     className={cn(
                       navItemClasses,
                       location.pathname === item.href && activeItemClasses,
-                      item.isPremium && !isPremium && disabledItemClasses
+                      item.isPremium && !isPremium && disabledItemClasses,
+                      isMinimized && 'justify-center px-2'
                     )}
                     onClick={(e) => handlePremiumItemClick(e, item.isPremium || false)}
                   >
                     {item.icon}
-                    <span>{item.label}</span>
-                    {item.isPremium && !isPremium && (
-                      <Lock size={16} className="ml-auto text-amber-500" />
+                    {!isMinimized && (
+                      <>
+                        <span>{item.label}</span>
+                        {item.isPremium && !isPremium && (
+                          <Lock size={16} className="ml-auto text-amber-500" />
+                        )}
+                      </>
                     )}
                   </Link>
                 </TooltipTrigger>
-                {item.isPremium && !isPremium && (
-                  <TooltipContent>
-                    <p>Recurso exclusivo para usuários Premium</p>
+                {(isMinimized || (item.isPremium && !isPremium)) && (
+                  <TooltipContent side="right">
+                    <p>{item.label}</p>
+                    {item.isPremium && !isPremium && (
+                      <p className="text-xs text-amber-500">Recurso Premium</p>
+                    )}
                   </TooltipContent>
                 )}
               </Tooltip>
@@ -194,18 +241,34 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile, isOpen, onToggle }) => {
           ))}
         </nav>
         
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-              {user?.Nome?.charAt(0) || 'U'}
+        <div className={cn("p-4 border-t border-gray-200 dark:border-gray-700", isMinimized && "flex justify-center")}>
+          {!isMinimized ? (
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
+                {user?.Nome?.charAt(0) || 'U'}
+              </div>
+              <div>
+                <p className="text-sm font-medium truncate">{user?.Nome || 'Usuário'}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {user?.Premium ? 'Premium' : 'Padrão'}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium truncate">{user?.Nome || 'Usuário'}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {user?.Premium ? 'Premium' : 'Padrão'}
-              </p>
-            </div>
-          </div>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
+                    {user?.Nome?.charAt(0) || 'U'}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{user?.Nome || 'Usuário'}</p>
+                  <p className="text-xs">{user?.Premium ? 'Premium' : 'Padrão'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </aside>
       

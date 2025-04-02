@@ -12,6 +12,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
     // Check if user prefers dark mode
@@ -25,6 +26,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    
+    // Load sidebar minimized state from localStorage
+    const isMinimized = localStorage.getItem('sidebarMinimized') === 'true';
+    setMinimized(isMinimized);
   }, []);
 
   const toggleSidebar = () => {
@@ -41,16 +46,24 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       document.documentElement.classList.remove('dark');
     }
   };
+  
+  const toggleMinimized = () => {
+    const newMinimized = !minimized;
+    setMinimized(newMinimized);
+    localStorage.setItem('sidebarMinimized', newMinimized.toString());
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex">
       <Sidebar 
         isMobile={isMobile} 
         isOpen={sidebarOpen} 
-        onToggle={toggleSidebar} 
+        onToggle={toggleSidebar}
+        isMinimized={minimized}
+        onToggleMinimize={toggleMinimized}
       />
       
-      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+      <div className={`flex-1 flex flex-col min-h-screen overflow-hidden ${!isMobile && "transition-all duration-300"} ${!isMobile && minimized ? "ml-16" : ""}`}>
         <Navbar 
           toggleDarkMode={toggleDarkMode} 
           isDarkMode={darkMode} 
