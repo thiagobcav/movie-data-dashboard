@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getLogs, clearLogs, LogEntry } from '@/utils/api';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { BadgeExtended } from '@/components/ui/badge-extended';
 
 // Storage key for encrypted configuration
 const CONFIG_STORAGE_KEY = 'admin_config_secure';
@@ -41,45 +43,20 @@ const ConfigPanel = () => {
 
   // Load stored configuration on component mount
   useEffect(() => {
-    const storedEncryptedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
-    
-    if (storedEncryptedConfig) {
-      try {
-        const decryptedConfig = decrypt(storedEncryptedConfig);
-        const parsedConfig = JSON.parse(decryptedConfig);
-        
-        setApiToken(parsedConfig.apiToken || '');
-        setBaseUrl(parsedConfig.baseUrl || '');
-        setTableIds(parsedConfig.tableIds || {
-          contents: '',
-          episodes: '',
-          banners: '',
-          categories: '',
-          users: '',
-          sessions: '',
-          platforms: '',
-        });
-        
-        // Update the global config context
-        updateConfig({
-          apiToken: parsedConfig.apiToken || '',
-          baseUrl: parsedConfig.baseUrl || '',
-          tableIds: parsedConfig.tableIds || {
-            contents: '',
-            episodes: '',
-            banners: '',
-            categories: '',
-            users: '',
-            sessions: '',
-            platforms: '',
-          },
-        });
-      } catch (error) {
-        console.error('Failed to parse stored configuration:', error);
-        toast.error('Erro ao carregar configurações salvas');
-      }
+    if (config) {
+      setApiToken(config.apiToken || '');
+      setBaseUrl(config.baseUrl || '');
+      setTableIds(config.tableIds || {
+        contents: '',
+        episodes: '',
+        banners: '',
+        categories: '',
+        users: '',
+        sessions: '',
+        platforms: '',
+      });
     }
-  }, [updateConfig]);
+  }, [config]);
 
   const handleSaveConfig = () => {
     const newConfig = {
@@ -132,11 +109,11 @@ const ConfigPanel = () => {
   }, [activeTab]);
 
   // Get background color for log type
-  const getLogBadgeVariant = (type: LogEntry['type']): "default" | "destructive" | "outline" | "secondary" | "success" | "warning" => {
+  const getLogBadgeVariant = (type: LogEntry['type']) => {
     switch (type) {
       case 'error': return 'destructive';
-      case 'warning': return 'warning' as any;
-      case 'success': return 'success' as any;
+      case 'warning': return 'warning';
+      case 'success': return 'success';
       default: return 'secondary';
     }
   };
@@ -339,9 +316,9 @@ const ConfigPanel = () => {
                       className="p-3 rounded border bg-card shadow-sm"
                     >
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
-                        <Badge variant={getLogBadgeVariant(log.type)} className="w-fit">
+                        <BadgeExtended variant={getLogBadgeVariant(log.type)} className="w-fit">
                           {log.type.toUpperCase()}
-                        </Badge>
+                        </BadgeExtended>
                         <span className="text-xs text-muted-foreground">
                           {new Date(log.timestamp).toLocaleString()}
                         </span>

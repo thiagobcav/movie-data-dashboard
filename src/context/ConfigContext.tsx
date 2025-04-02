@@ -40,6 +40,9 @@ const defaultConfig: Config = {
   }
 };
 
+// Storage key for both localStorage methods
+const STORAGE_KEY = 'baserow-config';
+
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -47,7 +50,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     // Load configuration from localStorage
-    const storedConfig = localStorage.getItem('baserow-config');
+    const storedConfig = localStorage.getItem(STORAGE_KEY);
     
     if (storedConfig) {
       try {
@@ -65,7 +68,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const saveToLocalStorage = (newConfig: Config) => {
-    localStorage.setItem('baserow-config', JSON.stringify(newConfig));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
   };
 
   const updateConfig = (newConfig: Config) => {

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useConfig } from '../../context/ConfigContext';
 import { useAuth } from '../../context/AuthContext';
@@ -21,7 +21,7 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ toggleDarkMode, isDarkMode }) => {
   const location = useLocation();
-  const { apiToken } = useConfig();
+  const { config } = useConfig();
   const { user, logout } = useAuth();
 
   // Map of routes to their display names
@@ -49,7 +49,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleDarkMode, isDarkMode }) => {
         <h1 className="text-xl font-semibold">{currentTitle}</h1>
 
         <div className="flex items-center space-x-4">
-          {!apiToken && (
+          {!config.apiToken && (
             <div className="hidden sm:block bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 px-3 py-1 rounded-full text-xs font-medium animate-pulse">
               Configure seu token API nas configurações
             </div>
