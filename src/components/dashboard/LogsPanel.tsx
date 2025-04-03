@@ -25,6 +25,19 @@ interface LogEntry {
 
 const MAX_LOGS = 1000;
 
+// Move getLevelColor out of the component so it can be used by LogsList
+const getLevelColor = (level: string) => {
+  switch (level) {
+    case 'error':
+      return 'bg-red-500';
+    case 'warn':
+      return 'bg-amber-500';
+    case 'info':
+    default:
+      return 'bg-blue-500';
+  }
+};
+
 const LogsPanel = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
@@ -96,18 +109,6 @@ const LogsPanel = () => {
     } catch (error) {
       console.error('Error downloading logs:', error);
       toast.error('Erro ao baixar logs');
-    }
-  };
-
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'error':
-        return 'bg-red-500';
-      case 'warn':
-        return 'bg-amber-500';
-      case 'info':
-      default:
-        return 'bg-blue-500';
     }
   };
   

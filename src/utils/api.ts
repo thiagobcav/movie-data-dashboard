@@ -1,5 +1,7 @@
+
 import { toast } from 'sonner';
 import logger from './logger';
+import { processBatches } from './batchProcessor';
 
 export type TableType = 
   | 'contents' 
