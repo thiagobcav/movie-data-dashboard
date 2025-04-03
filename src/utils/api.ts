@@ -1,5 +1,5 @@
-
 import { toast } from 'sonner';
+import logger from './logger';
 
 export type TableType = 
   | 'contents' 
@@ -30,8 +30,10 @@ export class BaserowApi {
 
   private async request(endpoint: string, options: RequestInit = {}) {
     if (!this.apiToken) {
-      toast.error('API Token não configurado');
-      throw new Error('API Token não configurado');
+      const errorMsg = 'API Token não configurado';
+      logger.error(errorMsg);
+      toast.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     const directUrl = `${this.baseUrl}/${endpoint}`;
@@ -44,7 +46,7 @@ export class BaserowApi {
       // Determine if we need to use the proxy
       if (isMixedContent) {
         // Log that we're using the proxy
-        console.log('Usando proxy para contornar restrições de conteúdo misto');
+        logger.info('Usando proxy para contornar restrições de conteúdo misto');
         
         // Encode the full URL for the proxy
         const fullUrl = `${directUrl}`;
@@ -60,20 +62,20 @@ export class BaserowApi {
         let bodyParam = '';
         if ((method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE') && options.body) {
           // Log the request body for debugging
-          console.log('Request body:', options.body);
+          logger.info('Request body:', options.body);
           bodyParam = `&body=${encodeURIComponent(options.body as string)}`;
         }
         
         // Build the final URL with all parameters
         const finalProxyUrl = proxyRequestUrl + bodyParam;
         
-        console.log(`Enviando requisição ${method} para o proxy:`, finalProxyUrl);
+        logger.info(`Enviando requisição ${method} para o proxy:`, finalProxyUrl);
         
         const response = await fetch(finalProxyUrl);
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Proxy response error:', errorText);
+          logger.error('Proxy response error:', { status: response.status, body: errorText });
           throw new Error(`HTTP error via proxy: ${response.status} - ${errorText || 'Unknown error'}`);
         }
         
@@ -81,9 +83,15 @@ export class BaserowApi {
         
         // Check if the proxy response contains error information
         if (responseData.error) {
-          console.error('API error via proxy:', responseData.error);
+          logger.error('API error via proxy:', responseData);
           
           if (responseData.error.includes('ERROR_REQUEST_BODY_VALIDATION')) {
+            // Log more details about the validation error
+            logger.error('Erro de validação de dados:', { 
+              error: responseData.error, 
+              detail: responseData.detail || 'Sem detalhes adicionais'
+            });
+            
             throw new Error(`Erro de validação: Verifique os campos obrigatórios. Detalhes: ${responseData.detail || 'Formato de dados inválido'}`);
           }
           
@@ -94,10 +102,10 @@ export class BaserowApi {
       } 
       // Direct request (no proxy needed)
       else {
-        console.log('Enviando requisição direta para:', directUrl);
+        logger.info('Enviando requisição direta para:', directUrl);
         
         if (options.body) {
-          console.log('Request body:', options.body);
+          logger.info('Request body:', options.body);
         }
         
         const defaultOptions: RequestInit = {
@@ -127,9 +135,11 @@ export class BaserowApi {
             errorData = { error: text || `HTTP error ${response.status}` };
           }
           
-          console.error('API error details:', errorData);
+          logger.error('API error details:', errorData);
           
           if (errorData.error && errorData.error.includes('ERROR_REQUEST_BODY_VALIDATION')) {
+            logger.error('Erro de validação de dados:', errorData);
+            
             throw new Error(`Erro de validação: Verifique os campos obrigatórios. Detalhes: ${errorData.detail || 'Formato de dados inválido'}`);
           }
           
@@ -137,6 +147,8 @@ export class BaserowApi {
             const errorDetails = Object.entries(errorData.errors)
               .map(([field, messages]) => `${field}: ${messages}`)
               .join(', ');
+            
+            logger.error('Erros de validação por campo:', errorData.errors);
             throw new Error(`Erro de validação: ${errorDetails}`);
           }
           
@@ -153,7 +165,7 @@ export class BaserowApi {
         return await response.text();
       }
     } catch (error) {
-      console.error('API request failed:', error);
+      logger.error('API request failed:', error);
       
       if ((error as Error).message.includes('Failed to fetch') ||
           (error as Error).message.includes('NetworkError') ||
@@ -188,7 +200,9 @@ export class BaserowApi {
     const tableId = this.tableIds[tableType];
     
     if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
@@ -213,12 +227,16 @@ export class BaserowApi {
     const tableId = this.tableIds[tableType];
     
     if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
     // Certifique-se de que os dados estão no formato correto
     const cleanedData = this.sanitizeData(data);
+    
+    logger.info(`Criando registro na tabela ${tableType}:`, cleanedData);
 
     return this.request(`database/rows/table/${tableId}/?user_field_names=true`, {
       method: 'POST',
@@ -230,12 +248,16 @@ export class BaserowApi {
     const tableId = this.tableIds[tableType];
     
     if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
     // Certifique-se de que os dados estão no formato correto
     const cleanedData = this.sanitizeData(data);
+    
+    logger.info(`Atualizando registro ${rowId} na tabela ${tableType}:`, cleanedData);
 
     return this.request(`database/rows/table/${tableId}/${rowId}/?user_field_names=true`, {
       method: 'PATCH',
@@ -247,9 +269,13 @@ export class BaserowApi {
     const tableId = this.tableIds[tableType];
     
     if (!tableId) {
-      toast.error(`ID da tabela ${tableType} não configurado`);
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
+
+    logger.info(`Excluindo registro ${rowId} da tabela ${tableType}`);
 
     return this.request(`database/rows/table/${tableId}/${rowId}/`, {
       method: 'DELETE',
@@ -343,6 +369,121 @@ export class BaserowApi {
     }
     
     return cleanedData;
+  }
+  
+  /**
+   * Função premium para substituir URLs base em conteúdos
+   * @param sourceUrl URL base atual
+   * @param targetUrl Nova URL base
+   * @param options Opções adicionais como progresso e cancelamento
+   */
+  async updateContentUrls(
+    sourceUrl: string, 
+    targetUrl: string, 
+    options: {
+      onProgress?: (processed: number, total: number) => void;
+      onComplete?: (updatedCount: number) => void;
+      onError?: (error: Error) => void;
+      shouldCancel?: () => boolean;
+    } = {}
+  ) {
+    try {
+      // Buscar todos os conteúdos (pode precisar de paginação para conjuntos grandes)
+      logger.info(`Iniciando atualização de URLs: ${sourceUrl} -> ${targetUrl}`);
+      
+      const page1 = await this.getTableRows('contents', 1, 100);
+      const totalItems = page1.count;
+      const totalPages = Math.ceil(totalItems / 100);
+      
+      logger.info(`Total de conteúdos: ${totalItems}, páginas: ${totalPages}`);
+      
+      let allContents: any[] = page1.results;
+      
+      // Buscar páginas adicionais se necessário
+      for (let page = 2; page <= totalPages; page++) {
+        // Verificar cancelamento
+        if (options.shouldCancel && options.shouldCancel()) {
+          logger.info("Atualização de URLs cancelada pelo usuário");
+          return { updated: 0, total: totalItems };
+        }
+        
+        const pageData = await this.getTableRows('contents', page, 100);
+        allContents = [...allContents, ...pageData.results];
+        
+        // Atualizar progresso de carregamento
+        if (options.onProgress) {
+          options.onProgress(allContents.length, totalItems);
+        }
+      }
+      
+      // Filtrar conteúdos que contêm a URL base
+      const contentsToUpdate = allContents.filter(content => {
+        const link = content.Link || '';
+        return link.includes(sourceUrl);
+      });
+      
+      logger.info(`Conteúdos que contêm a URL base ${sourceUrl}: ${contentsToUpdate.length}`);
+      
+      // Atualizar URLs
+      let updatedCount = 0;
+      
+      // Usar processamento em lote para evitar congelamento da UI
+      await processBatches(
+        contentsToUpdate,
+        async (content) => {
+          // Substituir URL
+          const oldLink = content.Link;
+          const newLink = oldLink.replace(sourceUrl, targetUrl);
+          
+          // Só atualizar se a URL for diferente
+          if (oldLink !== newLink) {
+            // Atualizar o conteúdo
+            await this.updateRow('contents', content.id, {
+              ...content,
+              Link: newLink
+            });
+            updatedCount++;
+            
+            logger.info(`URL atualizada: ${oldLink} -> ${newLink}`);
+          }
+          
+          return { id: content.id, oldLink, newLink };
+        },
+        {
+          batchSize: 5,
+          delayMs: 200,
+          onProgress: (processed, total) => {
+            if (options.onProgress) {
+              options.onProgress(processed, total);
+            }
+          },
+          onError: (error, content) => {
+            logger.error(`Erro ao atualizar URL do conteúdo ${content.id}:`, error);
+          },
+          shouldCancel: options.shouldCancel
+        }
+      );
+      
+      // Chamar callback de conclusão
+      if (options.onComplete) {
+        options.onComplete(updatedCount);
+      }
+      
+      logger.info(`Atualização de URLs concluída. ${updatedCount} conteúdos atualizados.`);
+      
+      return {
+        updated: updatedCount,
+        total: contentsToUpdate.length
+      };
+    } catch (error) {
+      logger.error('Erro durante atualização de URLs:', error);
+      
+      if (options.onError) {
+        options.onError(error as Error);
+      }
+      
+      throw error;
+    }
   }
 }
 

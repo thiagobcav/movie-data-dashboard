@@ -3,7 +3,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, CheckCircle, Loader2, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader2, Info, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RadialProgress } from '@/components/ui/RadialProgress';
@@ -26,6 +26,9 @@ interface ProgressDialogProps {
   onClose: () => void;
   isError?: boolean;
   errorMessage?: string;
+  canCancel?: boolean;
+  onCancel?: () => void;
+  isCancelling?: boolean;
 }
 
 export function ProgressDialog({
@@ -41,6 +44,9 @@ export function ProgressDialog({
   onClose,
   isError = false,
   errorMessage = '',
+  canCancel = false,
+  onCancel,
+  isCancelling = false,
 }: ProgressDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,6 +121,27 @@ export function ProgressDialog({
                   <br />
                   Não feche esta janela durante o processamento.
                 </div>
+                
+                {canCancel && onCancel && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full text-destructive hover:bg-destructive/10"
+                    onClick={onCancel}
+                    disabled={isCancelling}
+                  >
+                    {isCancelling ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cancelando...
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Cancelar Operação
+                      </>
+                    )}
+                  </Button>
+                )}
               </>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

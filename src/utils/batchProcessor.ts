@@ -14,13 +14,16 @@ export async function processBatches<T, R>(
     delayMs?: number;
     onProgress?: (processedCount: number, totalCount: number) => void;
     onError?: (error: Error, item: T) => void;
+    onCancel?: () => void;
+    shouldCancel?: () => boolean;
   } = {}
 ): Promise<R[]> {
   const { 
     batchSize = 5, 
     delayMs = 100,
     onProgress = () => {},
-    onError = () => {}
+    onError = () => {},
+    shouldCancel = () => false
   } = options;
   
   const results: R[] = [];
@@ -29,10 +32,21 @@ export async function processBatches<T, R>(
   
   // Process items in batches
   for (let i = 0; i < totalCount; i += batchSize) {
+    // Check for cancellation before processing batch
+    if (shouldCancel()) {
+      console.log('Batch processing cancelled');
+      return results;
+    }
+    
     const batch = items.slice(i, i + batchSize);
     
     // Process all items in the current batch concurrently
     const batchPromises = batch.map(async (item) => {
+      // Check for cancellation before processing item
+      if (shouldCancel()) {
+        return null as unknown as R;
+      }
+      
       try {
         // Process the item
         const result = await processFn(item);
@@ -45,6 +59,18 @@ export async function processBatches<T, R>(
       } catch (error) {
         // Handle errors without stopping the batch
         console.error('Error processing item in batch:', error);
+        
+        // Extract more detailed error information if available
+        let errorMessage = 'Unknown error';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          
+          // Check for validation errors
+          if (errorMessage.includes('ERROR_REQUEST_BODY_VALIDATION')) {
+            console.error('Validation error details:', error);
+          }
+        }
+        
         onError(error as Error, item);
         
         // Still count this item as processed for progress tracking
@@ -58,10 +84,13 @@ export async function processBatches<T, R>(
     
     // Wait for all items in the batch to be processed
     const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
+    
+    // Filter out null results (from cancellation)
+    const validResults = batchResults.filter(result => result !== null);
+    results.push(...validResults);
     
     // Add a delay between batches to prevent UI freezing
-    if (i + batchSize < totalCount) {
+    if (i + batchSize < totalCount && !shouldCancel()) {
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
