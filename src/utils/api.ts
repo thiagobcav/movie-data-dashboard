@@ -236,7 +236,7 @@ export class BaserowApi {
     }
 
     // Certifique-se de que os dados estão no formato correto
-    const cleanedData = this.sanitizeData(data);
+    const cleanedData = this.sanitizeData(data, true);
     
     logger.info(`Criando registro na tabela ${tableType}:`, cleanedData);
 
@@ -257,7 +257,7 @@ export class BaserowApi {
     }
 
     // Certifique-se de que os dados estão no formato correto
-    const cleanedData = this.sanitizeData(data);
+    const cleanedData = this.sanitizeData(data, false);
     
     logger.info(`Atualizando registro ${rowId} na tabela ${tableType}:`, cleanedData);
 
@@ -285,12 +285,18 @@ export class BaserowApi {
   }
 
   // Função para limpar e validar os dados antes de enviar para a API
-  private sanitizeData(data: Record<string, any>): Record<string, any> {
+  private sanitizeData(data: Record<string, any>, isCreate: boolean = false): Record<string, any> {
     const cleanedData = { ...data };
     
     // Remover campos `id` e `order` que não devem ser enviados
     delete cleanedData.id;
     delete cleanedData.order;
+    
+    // Remover campos de data automáticos que não devem ser enviados manualmente
+    delete cleanedData.Data;
+    delete cleanedData.Atualização;
+    delete cleanedData.Hoje;
+    delete cleanedData.Restam;
     
     // Remover propriedades undefined, null ou vazias para evitar problemas de validação
     Object.keys(cleanedData).forEach(key => {
@@ -319,11 +325,6 @@ export class BaserowApi {
         console.error('Erro ao formatar data:', e);
         // Em caso de erro, deixa como está
       }
-    }
-    
-    // Data padrão para novos registros
-    if (cleanedData.Data === undefined) {
-      cleanedData.Data = new Date().toISOString().split('T')[0];
     }
     
     // Garante que campos numéricos sejam números

@@ -32,11 +32,11 @@ const CrudDialog: React.FC<CrudDialogProps> = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={isMobile ? "w-[95%] p-4" : "sm:max-w-[500px]"}>
+      <DialogContent className={isMobile ? "w-[95%] p-4" : "sm:max-w-[600px]"}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="h-[60vh] pr-4">
+        <ScrollArea className="h-[70vh] pr-4">
           <div className="py-4 px-1">
             {children}
           </div>

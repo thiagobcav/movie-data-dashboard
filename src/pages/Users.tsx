@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import DataTable from '@/components/dashboard/DataTable';
@@ -17,7 +16,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-// Schema de validação para o formulário
 const userFormSchema = z.object({
   Nome: z.string().min(1, { message: 'Nome é obrigatório' }),
   Email: z.string().email({ message: 'Email inválido' }),
@@ -42,7 +40,6 @@ const Users = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const pageSize = 10;
 
-  // Colunas da tabela
   const columns = [
     { key: 'Nome', label: 'Nome' },
     { key: 'Email', label: 'Email' },
@@ -89,7 +86,6 @@ const Users = () => {
     },
   ];
 
-  // Configuração do formulário com react-hook-form
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
     defaultValues: {
@@ -103,7 +99,6 @@ const Users = () => {
     }
   });
 
-  // Buscar dados dos usuários
   const fetchData = async () => {
     if (!config.apiToken || !config.tableIds.users) {
       setIsLoading(false);
@@ -131,12 +126,10 @@ const Users = () => {
     }
   };
 
-  // Atualizar dados quando a página mudar ou as configurações mudarem
   useEffect(() => {
     fetchData();
   }, [currentPage, config.apiToken, config.baseUrl, config.tableIds.users]);
 
-  // Visualizar detalhes do usuário
   const handleView = (row: any) => {
     const imeiData = formatImeiData(row.IMEI);
     
@@ -153,7 +146,6 @@ const Users = () => {
     );
   };
 
-  // Editar usuário existente
   const handleEdit = (row: any) => {
     setCurrentUser(row);
     
@@ -170,13 +162,11 @@ const Users = () => {
     setIsDialogOpen(true);
   };
 
-  // Confirmar exclusão de usuário
   const handleDelete = (row: any) => {
     setCurrentUser(row);
     setIsDeleteDialogOpen(true);
   };
 
-  // Adicionar novo usuário
   const handleAdd = () => {
     setCurrentUser(null);
     const today = new Date().toISOString().split('T')[0]; // Today as YYYY-MM-DD
@@ -194,7 +184,6 @@ const Users = () => {
     setIsDialogOpen(true);
   };
 
-  // Salvar usuário (criar ou atualizar)
   const onSubmit = async (data: UserFormValues) => {
     if (!config.apiToken || !config.tableIds.users) {
       toast.error('Configure o token da API e o ID da tabela');
@@ -210,11 +199,8 @@ const Users = () => {
         tableIds: config.tableIds,
       });
 
-      // Prepara dados adicionais
       const userData = {
-        ...data,
-        Hoje: new Date().toISOString().split('T')[0],
-        Data: new Date().toISOString().split('T')[0]
+        ...data
       };
 
       if (currentUser) {
@@ -237,7 +223,6 @@ const Users = () => {
     }
   };
 
-  // Confirmar e executar exclusão
   const handleConfirmDelete = async () => {
     if (!currentUser || !config.apiToken || !config.tableIds.users) {
       return;

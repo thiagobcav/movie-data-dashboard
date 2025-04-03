@@ -262,7 +262,6 @@ function BulkUpload() {
         Cover: item.tvgLogo || '',
         Capa: item.tvgLogo || '',
         Categoria: item.groupTitle || 'Outros',
-        Data: new Date().toISOString().split('T')[0],
         Tipo: item.type === 'series' ? 'Série' : item.type === 'tv' ? 'TV' : 'Filme',
         Views: 0,
         Idioma: 'DUB'
@@ -306,7 +305,6 @@ function BulkUpload() {
         Capa: item.tvgLogo || '',
         Temporada: season,
         Episódio: episode,
-        Data: new Date().toISOString().split('T')[0],
         Série: seriesId
       };
       
