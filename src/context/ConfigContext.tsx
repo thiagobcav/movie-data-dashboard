@@ -101,7 +101,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     toast.success(`ID da tabela ${table} atualizado`);
   };
 
-  const value = {
+  const value: ConfigContextType = {
     apiToken,
     baseUrl,
     tableIds,

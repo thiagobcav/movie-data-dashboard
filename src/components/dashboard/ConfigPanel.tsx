@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -11,73 +11,35 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useConfig } from '@/context/ConfigContext';
-import { encrypt, decrypt } from '@/utils/encryption';
 import { toast } from 'sonner';
 import { LockIcon } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-
-// Storage key for encrypted configuration
-const CONFIG_STORAGE_KEY = 'admin_config_secure';
 
 const ConfigPanel = () => {
-  const { config, updateConfig } = useConfig();
-  const { user } = useAuth();
-  const [apiToken, setApiToken] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [tableIds, setTableIds] = useState<Record<string, string>>({
-    contents: '',
-    episodes: '',
-    banners: '',
-    categories: '',
-    users: '',
-    sessions: '',
-    platforms: '',
-  });
-
-  // Load stored configuration on component mount
-  useEffect(() => {
-    const storedEncryptedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
-    
-    if (storedEncryptedConfig) {
-      try {
-        const decryptedConfig = decrypt(storedEncryptedConfig);
-        const parsedConfig = JSON.parse(decryptedConfig);
-        
-        setApiToken(parsedConfig.apiToken || '');
-        setBaseUrl(parsedConfig.baseUrl || '');
-        setTableIds(parsedConfig.tableIds || {});
-        
-        // Update the global config context
-        updateConfig({
-          apiToken: parsedConfig.apiToken || '',
-          baseUrl: parsedConfig.baseUrl || '',
-          tableIds: parsedConfig.tableIds || {},
-        });
-      } catch (error) {
-        console.error('Failed to parse stored configuration:', error);
-        toast.error('Erro ao carregar configurações salvas');
-      }
-    }
-  }, [updateConfig]);
+  const config = useConfig();
+  const [apiToken, setApiToken] = useState(config.apiToken);
+  const [baseUrl, setBaseUrl] = useState(config.baseUrl);
+  const [tableIds, setTableIds] = useState({ ...config.tableIds });
 
   const handleSaveConfig = () => {
-    const newConfig = {
-      apiToken,
-      baseUrl,
-      tableIds,
-    };
+    // Atualizar token da API
+    config.updateApiToken(apiToken);
     
-    // Save to local storage (encrypted)
-    localStorage.setItem(CONFIG_STORAGE_KEY, encrypt(JSON.stringify(newConfig)));
+    // Atualizar URL base
+    config.updateBaseUrl(baseUrl);
     
-    // Update the global config
-    updateConfig(newConfig);
+    // Atualizar IDs das tabelas
+    Object.keys(tableIds).forEach((key) => {
+      const tableKey = key as keyof typeof tableIds;
+      if (tableIds[tableKey] !== config.tableIds[tableKey]) {
+        config.updateTableId(tableKey, tableIds[tableKey]);
+      }
+    });
     
     toast.success('Configurações salvas com sucesso');
   };
 
   const handleTableIdChange = (
-    key: string,
+    key: keyof typeof tableIds,
     value: string
   ) => {
     setTableIds((prev) => ({
