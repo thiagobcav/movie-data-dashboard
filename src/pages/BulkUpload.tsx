@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -162,7 +161,6 @@ function BulkUpload() {
   
   const processM3UContent = (content: string) => {
     try {
-      // Parse the M3U content
       const items = parseM3U(content);
       
       if (!items || items.length === 0) {
@@ -171,27 +169,22 @@ function BulkUpload() {
         return;
       }
       
-      // Add status field to each item
       const itemsWithStatus = items.map((item) => ({
         ...item,
         status: 'pending' as const
       }));
       
-      // Group series episodes by series name
       const seriesItems: SeriesData = {};
       itemsWithStatus
         .filter(item => item.type === 'series')
         .forEach(item => {
-          // Extract series name from title
           let seriesName = item.title;
           
-          // Try to extract name using common formats
           const seriesMatch = item.title.match(/^(.+?)(?:\s+[Ss](\d+)[Ee](\d+)|\s+[Tt](\d+)[Ee](\d+)|\s+-\s+[Ee]p(?:is[óo]dio)?\s*\d+)/i);
           if (seriesMatch) {
             seriesName = seriesMatch[1].trim();
           }
           
-          // Add to series data structure
           if (!seriesItems[seriesName]) {
             seriesItems[seriesName] = {
               name: seriesName,
@@ -226,7 +219,6 @@ function BulkUpload() {
         tableIds: config.tableIds
       });
       
-      // Encode the name for the URL
       const encodedFilter = encodeURIComponent(JSON.stringify({
         filter_type: "AND",
         filters: [{
@@ -265,15 +257,18 @@ function BulkUpload() {
       });
       
       const contentData = {
-        Nome: item.title,
-        Fonte: item.url,
+        Nome: item.title || 'Sem título',
+        Fonte: item.url || '',
         Cover: item.tvgLogo || '',
+        Capa: item.tvgLogo || '',
         Categoria: item.groupTitle || 'Outros',
         Data: new Date().toISOString().split('T')[0],
         Tipo: item.type === 'series' ? 'Série' : item.type === 'tv' ? 'TV' : 'Filme',
-        Views: 0
+        Views: 0,
+        Idioma: 'DUB'
       };
       
+      console.log('Enviando dados de conteúdo:', contentData);
       const response = await api.createRow('contents', contentData);
       return response.id;
     } catch (error) {
@@ -295,7 +290,6 @@ function BulkUpload() {
         tableIds: config.tableIds
       });
       
-      // Extract season and episode numbers from title
       let season = 1;
       let episode = 1;
       
@@ -306,8 +300,9 @@ function BulkUpload() {
       }
       
       const episodeData = {
-        Nome: item.title,
-        Fonte: item.url,
+        Nome: item.title || 'Sem título',
+        Fonte: item.url || '',
+        Link: item.url || '',
         Capa: item.tvgLogo || '',
         Temporada: season,
         Episódio: episode,
@@ -315,6 +310,7 @@ function BulkUpload() {
         Série: seriesId
       };
       
+      console.log('Enviando dados de episódio:', episodeData);
       const response = await api.createRow('episodes', episodeData);
       return response.id;
     } catch (error) {
@@ -327,11 +323,9 @@ function BulkUpload() {
     let successCount = 0;
     
     try {
-      // First check if the series already exists
       const seriesExists = await checkItemExists({ title: seriesName } as ParsedItem, 'contents');
       
       if (seriesExists) {
-        // Update items status to duplicate
         const updatedItems = [...parsedItems];
         items.forEach(episode => {
           const index = updatedItems.findIndex(item => item.url === episode.url);
@@ -344,51 +338,60 @@ function BulkUpload() {
         return 0;
       }
       
-      // Create the series first
       const firstEpisode = items[0];
       const seriesData = {
         title: seriesName,
         url: firstEpisode.url,
         tvgLogo: firstEpisode.tvgLogo,
-        groupTitle: firstEpisode.groupTitle,
+        groupTitle: firstEpisode.groupTitle || 'Séries',
         type: 'series' as ContentType
       };
       
-      // Create the series content
       const seriesId = await createContentItem(seriesData);
       
       if (!seriesId) {
         throw new Error('Falha ao criar série');
       }
       
-      // Create episodes using batch processing to prevent UI freeze
       await processBatches(
         items,
         async (episode) => {
-          // Update item status to processing
-          const updatedItems = [...parsedItems];
-          const index = updatedItems.findIndex(item => item.url === episode.url);
-          if (index !== -1) {
-            updatedItems[index].status = 'processed';
-            setParsedItems(updatedItems);
+          try {
+            const updatedItems = [...parsedItems];
+            const index = updatedItems.findIndex(item => item.url === episode.url);
+            if (index !== -1) {
+              updatedItems[index].status = 'processed';
+              setParsedItems(updatedItems);
+            }
+            
+            const episodeId = await createEpisodeItem(seriesId, episode);
+            
+            const finalItems = [...parsedItems];
+            const finalIndex = finalItems.findIndex(item => item.url === episode.url);
+            if (finalIndex !== -1) {
+              finalItems[finalIndex].status = 'uploaded';
+              setParsedItems(finalItems);
+            }
+            
+            successCount++;
+            return episodeId;
+          } catch (error) {
+            console.error(`Erro ao processar episódio ${episode.title}:`, error);
+            
+            const errorItems = [...parsedItems];
+            const errorIndex = errorItems.findIndex(item => item.url === episode.url);
+            if (errorIndex !== -1) {
+              errorItems[errorIndex].status = 'error';
+              errorItems[errorIndex].error = (error as Error).message;
+              setParsedItems(errorItems);
+            }
+            
+            return null;
           }
-          
-          const episodeId = await createEpisodeItem(seriesId, episode);
-          
-          // Update item status to uploaded
-          const finalItems = [...parsedItems];
-          const finalIndex = finalItems.findIndex(item => item.url === episode.url);
-          if (finalIndex !== -1) {
-            finalItems[finalIndex].status = 'uploaded';
-            setParsedItems(finalItems);
-          }
-          
-          successCount++;
-          return episodeId;
         },
         {
-          batchSize: 3, // Process 3 episodes at a time
-          delayMs: 100, // Small delay between batches
+          batchSize: 3,
+          delayMs: 300,
           onProgress: (processed) => {
             setProcessedCount(prev => prev + 1);
             const totalProgress = Math.floor((processedCount + processed) * 100 / parsedItems.length);
@@ -407,7 +410,6 @@ function BulkUpload() {
     } catch (error) {
       console.error(`Erro ao processar série ${seriesName}:`, error);
       
-      // Update items status to error
       const updatedItems = [...parsedItems];
       items.forEach(episode => {
         const index = updatedItems.findIndex(item => item.url === episode.url);
@@ -423,7 +425,6 @@ function BulkUpload() {
   
   const processItem = async (item: ParsedItem): Promise<boolean> => {
     try {
-      // Update item status to processing
       const updatedItems = [...parsedItems];
       const index = updatedItems.findIndex(i => i.url === item.url);
       if (index !== -1) {
@@ -431,11 +432,9 @@ function BulkUpload() {
         setParsedItems(updatedItems);
       }
       
-      // Check if item already exists
       const exists = await checkItemExists(item, 'contents');
       
       if (exists) {
-        // Update item status to duplicate
         const dupeItems = [...parsedItems];
         const dupeIndex = dupeItems.findIndex(i => i.url === item.url);
         if (dupeIndex !== -1) {
@@ -446,10 +445,8 @@ function BulkUpload() {
         return false;
       }
       
-      // Create item
       await createContentItem(item);
       
-      // Update item status to uploaded
       const finalItems = [...parsedItems];
       const finalIndex = finalItems.findIndex(i => i.url === item.url);
       if (finalIndex !== -1) {
@@ -457,7 +454,6 @@ function BulkUpload() {
         setParsedItems(finalItems);
       }
       
-      // Update counters
       if (item.type === 'movie') {
         setUploadedCount(prev => ({
           ...prev,
@@ -476,7 +472,6 @@ function BulkUpload() {
     } catch (error) {
       console.error('Erro ao processar item:', error);
       
-      // Update item status to error
       const errorItems = [...parsedItems];
       const errorIndex = errorItems.findIndex(i => i.url === item.url);
       if (errorIndex !== -1) {
@@ -510,43 +505,43 @@ function BulkUpload() {
     setUploadError('');
     
     try {
-      // First process all series (group episodes)
       const seriesNames = Object.keys(seriesData);
       
-      // Process series in batches to prevent UI freeze
       await processBatches(
         seriesNames,
         async (seriesName) => {
           return await processSeriesItem(seriesName, seriesData[seriesName].episodes);
         },
         {
-          batchSize: 1, // Process one series at a time
-          delayMs: 300, // Add delay between series to prevent UI freeze
+          batchSize: 1,
+          delayMs: 500,
           onProgress: (processed, total) => {
-            const totalProgress = Math.floor(processed * 50 / total); // Series are 50% of the progress
+            const totalProgress = Math.floor(processed * 50 / total);
             setUploadProgress(totalProgress);
           }
         }
       );
       
-      // Process movies and TV shows
       const nonSeriesItems = parsedItems.filter(item => 
         item.type !== 'series' && item.status === 'pending'
       );
       
-      // Process non-series items in batches
       await processBatches(
         nonSeriesItems,
         async (item) => {
-          const result = await processItem(item);
-          setProcessedCount(prev => prev + 1);
-          return result;
+          try {
+            const result = await processItem(item);
+            setProcessedCount(prev => prev + 1);
+            return result;
+          } catch (error) {
+            console.error(`Erro ao processar item ${item.title}:`, error);
+            return false;
+          }
         },
         {
-          batchSize: 5, // Process 5 items at a time
-          delayMs: 200, // Add delay between batches
+          batchSize: 3,
+          delayMs: 300,
           onProgress: (processed, total) => {
-            // Non-series items are the other 50% of progress
             const baseProgress = seriesNames.length > 0 ? 50 : 0;
             const additionalProgress = Math.floor(processed * (100 - baseProgress) / total);
             setUploadProgress(baseProgress + additionalProgress);
@@ -802,7 +797,6 @@ function BulkUpload() {
           </>
         )}
         
-        {/* Progress Dialog */}
         <ProgressDialog
           open={isProgressDialogOpen}
           onOpenChange={setIsProgressDialogOpen}

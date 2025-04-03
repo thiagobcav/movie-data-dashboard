@@ -59,6 +59,8 @@ export class BaserowApi {
         // Add the body parameter for POST, PATCH, DELETE methods if needed
         let bodyParam = '';
         if ((method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE') && options.body) {
+          // Log the request body for debugging
+          console.log('Request body:', options.body);
           bodyParam = `&body=${encodeURIComponent(options.body as string)}`;
         }
         
@@ -70,14 +72,33 @@ export class BaserowApi {
         const response = await fetch(finalProxyUrl);
         
         if (!response.ok) {
-          throw new Error(`HTTP error via proxy: ${response.status}`);
+          const errorText = await response.text();
+          console.error('Proxy response error:', errorText);
+          throw new Error(`HTTP error via proxy: ${response.status} - ${errorText || 'Unknown error'}`);
         }
         
-        return await response.json();
+        const responseData = await response.json();
+        
+        // Check if the proxy response contains error information
+        if (responseData.error) {
+          console.error('API error via proxy:', responseData.error);
+          
+          if (responseData.error.includes('ERROR_REQUEST_BODY_VALIDATION')) {
+            throw new Error(`Erro de validação: Verifique os campos obrigatórios. Detalhes: ${responseData.detail || 'Formato de dados inválido'}`);
+          }
+          
+          throw new Error(responseData.error);
+        }
+        
+        return responseData;
       } 
       // Direct request (no proxy needed)
       else {
         console.log('Enviando requisição direta para:', directUrl);
+        
+        if (options.body) {
+          console.log('Request body:', options.body);
+        }
         
         const defaultOptions: RequestInit = {
           headers: {
@@ -107,6 +128,10 @@ export class BaserowApi {
           }
           
           console.error('API error details:', errorData);
+          
+          if (errorData.error && errorData.error.includes('ERROR_REQUEST_BODY_VALIDATION')) {
+            throw new Error(`Erro de validação: Verifique os campos obrigatórios. Detalhes: ${errorData.detail || 'Formato de dados inválido'}`);
+          }
           
           if (errorData.errors) {
             const errorDetails = Object.entries(errorData.errors)
@@ -239,6 +264,15 @@ export class BaserowApi {
     delete cleanedData.id;
     delete cleanedData.order;
     
+    // Remover propriedades undefined, null ou vazias para evitar problemas de validação
+    Object.keys(cleanedData).forEach(key => {
+      if (cleanedData[key] === undefined || cleanedData[key] === null) {
+        delete cleanedData[key];
+      } else if (typeof cleanedData[key] === 'string' && cleanedData[key].trim() === '') {
+        delete cleanedData[key];
+      }
+    });
+    
     // Garante que as datas estão no formato YYYY-MM-DD
     if (cleanedData.Pagamento) {
       try {
@@ -259,6 +293,11 @@ export class BaserowApi {
       }
     }
     
+    // Data padrão para novos registros
+    if (cleanedData.Data === undefined) {
+      cleanedData.Data = new Date().toISOString().split('T')[0];
+    }
+    
     // Garante que campos numéricos sejam números
     if ('Dias' in cleanedData && typeof cleanedData.Dias !== 'number') {
       cleanedData.Dias = parseInt(cleanedData.Dias) || 0;
@@ -266,6 +305,14 @@ export class BaserowApi {
     
     if ('Logins' in cleanedData && typeof cleanedData.Logins !== 'number') {
       cleanedData.Logins = parseInt(cleanedData.Logins) || 0;
+    }
+    
+    if ('Temporada' in cleanedData && typeof cleanedData.Temporada !== 'number') {
+      cleanedData.Temporada = parseInt(cleanedData.Temporada) || 1;
+    }
+    
+    if ('Episódio' in cleanedData && typeof cleanedData.Episódio !== 'number') {
+      cleanedData.Episódio = parseInt(cleanedData.Episódio) || 1;
     }
     
     // Certifique-se de que o IMEI seja uma string JSON válida
@@ -280,6 +327,19 @@ export class BaserowApi {
           Dispositivo: ''
         });
       }
+    }
+    
+    // Verifica se há campos que nunca devem ser nulos
+    if ('Nome' in cleanedData && !cleanedData.Nome) {
+      cleanedData.Nome = 'Sem nome';
+    }
+    
+    if ('Fonte' in cleanedData && !cleanedData.Fonte) {
+      cleanedData.Fonte = cleanedData.Link || cleanedData.url || '';
+    }
+    
+    if ('Link' in cleanedData && !cleanedData.Link) {
+      cleanedData.Link = cleanedData.Fonte || cleanedData.url || '';
     }
     
     return cleanedData;
