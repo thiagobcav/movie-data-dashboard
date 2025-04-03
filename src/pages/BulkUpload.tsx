@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RadialProgress } from '@/components/ui/RadialProgress';
+import { processBatches } from '@/utils/batchProcessor';
+import { ProgressDialog } from '@/components/ui/progress-dialog';
 
 type ContentType = 'movie' | 'series' | 'tv' | 'unknown';
 
@@ -49,7 +51,7 @@ interface SeriesData {
 
 function BulkUpload() {
   const { user, isPremiumFeatureAvailable } = useAuth();
-  const { config } = useConfig();
+  const config = useConfig();
   const [m3uUrl, setM3uUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
@@ -63,6 +65,9 @@ function BulkUpload() {
   const [seriesData, setSeriesData] = useState<SeriesData>({});
   const [duplicatesFound, setDuplicatesFound] = useState(0);
   const [urlError, setUrlError] = useState('');
+  const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
+  const [isUploadComplete, setIsUploadComplete] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   
   const isPremium = user?.Premium === true;
   
@@ -74,6 +79,8 @@ function BulkUpload() {
     setSeriesData({});
     setDuplicatesFound(0);
     setUrlError('');
+    setIsUploadComplete(false);
+    setUploadError('');
   };
   
   const filterItemsByType = (items: ParsedItem[]): ParsedItem[] => {
@@ -299,7 +306,7 @@ function BulkUpload() {
       }
       
       const episodeData = {
-        Nome: seriesData[item.title]?.name || item.title,
+        Nome: item.title,
         Fonte: item.url,
         Capa: item.tvgLogo || '',
         Temporada: season,
@@ -354,30 +361,41 @@ function BulkUpload() {
         throw new Error('Falha ao criar série');
       }
       
-      // Create episodes
-      for (const episode of items) {
-        // Update item status to processing
-        const updatedItems = [...parsedItems];
-        const index = updatedItems.findIndex(item => item.url === episode.url);
-        if (index !== -1) {
-          updatedItems[index].status = 'processed';
-          setParsedItems(updatedItems);
+      // Create episodes using batch processing to prevent UI freeze
+      await processBatches(
+        items,
+        async (episode) => {
+          // Update item status to processing
+          const updatedItems = [...parsedItems];
+          const index = updatedItems.findIndex(item => item.url === episode.url);
+          if (index !== -1) {
+            updatedItems[index].status = 'processed';
+            setParsedItems(updatedItems);
+          }
+          
+          const episodeId = await createEpisodeItem(seriesId, episode);
+          
+          // Update item status to uploaded
+          const finalItems = [...parsedItems];
+          const finalIndex = finalItems.findIndex(item => item.url === episode.url);
+          if (finalIndex !== -1) {
+            finalItems[finalIndex].status = 'uploaded';
+            setParsedItems(finalItems);
+          }
+          
+          successCount++;
+          return episodeId;
+        },
+        {
+          batchSize: 3, // Process 3 episodes at a time
+          delayMs: 100, // Small delay between batches
+          onProgress: (processed) => {
+            setProcessedCount(prev => prev + 1);
+            const totalProgress = Math.floor((processedCount + processed) * 100 / parsedItems.length);
+            setUploadProgress(totalProgress);
+          }
         }
-        
-        await createEpisodeItem(seriesId, episode);
-        successCount++;
-        
-        // Update item status to uploaded
-        const finalItems = [...parsedItems];
-        const finalIndex = finalItems.findIndex(item => item.url === episode.url);
-        if (finalIndex !== -1) {
-          finalItems[finalIndex].status = 'uploaded';
-          setParsedItems(finalItems);
-        }
-        
-        setProcessedCount(prev => prev + 1);
-        setUploadProgress(Math.floor((processedCount + 1) * 100 / parsedItems.length));
-      }
+      );
       
       setUploadedCount(prev => ({
         ...prev,
@@ -487,30 +505,60 @@ function BulkUpload() {
     setUploadProgress(0);
     setUploadedCount({ total: 0, movies: 0, series: 0, tv: 0 });
     setDuplicatesFound(0);
+    setIsProgressDialogOpen(true);
+    setIsUploadComplete(false);
+    setUploadError('');
     
     try {
       // First process all series (group episodes)
-      for (const seriesName in seriesData) {
-        await processSeriesItem(seriesName, seriesData[seriesName].episodes);
-      }
+      const seriesNames = Object.keys(seriesData);
+      
+      // Process series in batches to prevent UI freeze
+      await processBatches(
+        seriesNames,
+        async (seriesName) => {
+          return await processSeriesItem(seriesName, seriesData[seriesName].episodes);
+        },
+        {
+          batchSize: 1, // Process one series at a time
+          delayMs: 300, // Add delay between series to prevent UI freeze
+          onProgress: (processed, total) => {
+            const totalProgress = Math.floor(processed * 50 / total); // Series are 50% of the progress
+            setUploadProgress(totalProgress);
+          }
+        }
+      );
       
       // Process movies and TV shows
       const nonSeriesItems = parsedItems.filter(item => 
         item.type !== 'series' && item.status === 'pending'
       );
       
-      for (const item of nonSeriesItems) {
-        await processItem(item);
-        setProcessedCount(prev => prev + 1);
-        
-        // Update progress
-        const currentProgress = Math.floor((processedCount + 1) * 100 / parsedItems.length);
-        setUploadProgress(currentProgress);
-      }
+      // Process non-series items in batches
+      await processBatches(
+        nonSeriesItems,
+        async (item) => {
+          const result = await processItem(item);
+          setProcessedCount(prev => prev + 1);
+          return result;
+        },
+        {
+          batchSize: 5, // Process 5 items at a time
+          delayMs: 200, // Add delay between batches
+          onProgress: (processed, total) => {
+            // Non-series items are the other 50% of progress
+            const baseProgress = seriesNames.length > 0 ? 50 : 0;
+            const additionalProgress = Math.floor(processed * (100 - baseProgress) / total);
+            setUploadProgress(baseProgress + additionalProgress);
+          }
+        }
+      );
       
+      setIsUploadComplete(true);
       toast.success(`Upload concluído. ${uploadedCount.total} itens adicionados. ${duplicatesFound} duplicados ignorados.`);
     } catch (error) {
       console.error('Erro durante o upload:', error);
+      setUploadError((error as Error).message || 'Erro desconhecido durante o upload');
       toast.error(`Erro durante o upload: ${(error as Error).message}`);
     } finally {
       setUploading(false);
@@ -749,70 +797,26 @@ function BulkUpload() {
                     {uploading ? 'Processando...' : 'Iniciar Upload'}
                   </Button>
                 </div>
-                
-                {uploading && (
-                  <div className="w-full">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Progresso: {uploadProgress}%</span>
-                      <span>{processedCount} de {parsedItems.length}</span>
-                    </div>
-                    <Progress value={uploadProgress} className="h-2" />
-                  </div>
-                )}
               </CardFooter>
             </Card>
-            
-            {uploadedCount.total > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <CheckCircle size={20} className="text-green-500 mr-2" />
-                    Resumo do Upload
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="flex justify-center">
-                      <RadialProgress 
-                        value={uploadedCount.total} 
-                        max={parsedItems.length - duplicatesFound}
-                        size={180}
-                        thickness={16}
-                        color="var(--primary)"
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="text-lg font-medium">Total Enviado</h3>
-                        <p className="text-3xl font-bold">{uploadedCount.total} itens</p>
-                        <p className="text-sm text-muted-foreground">
-                          {duplicatesFound} duplicatas ignoradas
-                        </p>
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Filmes</p>
-                          <p className="text-xl font-semibold">{uploadedCount.movies}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Séries</p>
-                          <p className="text-xl font-semibold">{uploadedCount.series}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">TV</p>
-                          <p className="text-xl font-semibold">{uploadedCount.tv}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </>
         )}
+        
+        {/* Progress Dialog */}
+        <ProgressDialog
+          open={isProgressDialogOpen}
+          onOpenChange={setIsProgressDialogOpen}
+          title={isUploadComplete ? "Upload Concluído" : "Processando Conteúdos"}
+          progress={uploadProgress}
+          processedCount={processedCount}
+          totalCount={parsedItems.length}
+          uploadedCount={uploadedCount}
+          duplicatesFound={duplicatesFound}
+          isComplete={isUploadComplete}
+          onClose={() => setIsProgressDialogOpen(false)}
+          isError={!!uploadError}
+          errorMessage={uploadError}
+        />
       </div>
     </DashboardLayout>
   );
