@@ -1,4 +1,5 @@
 
+
 interface ApiConfig {
   apiToken: string;
   baseUrl: string;
@@ -174,6 +175,29 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
   };
   
   /**
+   * Helper function to convert HTTP URLs to HTTPS when possible
+   */
+  const secureUrl = (url: string): string => {
+    if (url && url.startsWith('http://')) {
+      // Try to convert to HTTPS, but only for domains that likely support it
+      const secureDomainsPatterns = [
+        'imgur.com', 'i.imgur.com', 
+        'mmfilmes.tv', 
+        'cloudfront.net', 
+        'akamaized.net',
+        'amazonaws.com'
+      ];
+      
+      // Check if this is a domain we can safely convert
+      const canSecure = secureDomainsPatterns.some(domain => url.includes(domain));
+      if (canSecure) {
+        return url.replace('http://', 'https://');
+      }
+    }
+    return url;
+  };
+  
+  /**
    * Update URLs for specific items in a table
    */
   const updateItemUrls = async (
@@ -278,6 +302,7 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
     updateRow,
     deleteRow,
     updateItemUrls,
+    secureUrl,
   };
 };
 
