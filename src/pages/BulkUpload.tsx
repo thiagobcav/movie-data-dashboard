@@ -256,16 +256,12 @@ function BulkUpload() {
         tableIds: config.tableIds
       });
       
-      // Try to secure URL for image and source
-      const securedSourceUrl = api.secureUrl(item.url || '');
-      const securedLogoUrl = api.secureUrl(item.tvgLogo || '');
-      
       const contentData = {
         Nome: item.title || 'Sem título',
-        Fonte: securedSourceUrl,
-        Link: securedSourceUrl, // Ensure Link field is populated with the URL
-        Cover: securedLogoUrl,
-        Capa: securedLogoUrl,
+        Fonte: item.url || '',
+        Link: item.url || '', // Ensure Link field is populated with the URL
+        Cover: item.tvgLogo || '',
+        Capa: item.tvgLogo || '',
         Categoria: item.groupTitle || 'Outros',
         Tipo: item.type === 'series' ? 'Série' : item.type === 'tv' ? 'TV' : 'Filme',
         Views: 0,
@@ -309,15 +305,11 @@ function BulkUpload() {
         }
       }
       
-      // Try to secure URLs
-      const securedSourceUrl = api.secureUrl(item.url || '');
-      const securedLogoUrl = api.secureUrl(item.tvgLogo || '');
-      
       const episodeData = {
         Nome: item.title || 'Sem título',
-        Fonte: securedSourceUrl,
-        Link: securedSourceUrl, // Ensure Link field is populated with the URL
-        Capa: securedLogoUrl,
+        Fonte: item.url || '',
+        Link: item.url || '', // Ensure Link field is populated with the URL
+        Capa: item.tvgLogo || '',
         Temporada: season,
         Episódio: episode,
         Série: seriesId

@@ -1,13 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { toast } from 'sonner';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const BANNERS_API_URL = "https://api.baserow.io/api/database/rows/table/491626/?user_field_names=true";
 const BANNERS_API_TOKEN = "9HJjNCWkRnJDxwYZHLYG9sHgLEu2Pbar";
@@ -25,18 +25,6 @@ const Promotionals = () => {
   const navigate = useNavigate();
   const [banners, setBanners] = useState<Banner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [httpIssue, setHttpIssue] = useState(false);
-
-  // Helper to convert HTTP urls to HTTPS via Google Apps Script
-  const secureUrl = (url: string): string => {
-    if (url && url.startsWith('http://')) {
-      // Convert HTTP to HTTPS via Google Apps Script proxy
-      // Format: https://script.google.com/macros/s/[SCRIPT_ID]/exec?url=[HTTP_URL]
-      const scriptUrl = "https://script.google.com/macros/s/AKfycbzTWrmPw3ZBKp49-5UlNXsYI5NzxVlTwEXvgFBvEo_tz3Qf4GF_UQCz5dA6MXbj2J7I/exec";
-      return `${scriptUrl}?url=${encodeURIComponent(url)}`;
-    }
-    return url;
-  };
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -53,17 +41,7 @@ const Promotionals = () => {
         }
         
         const data = await response.json();
-        const processedBanners = (data.results || []).map((banner: Banner) => {
-          // Check if we have HTTP images
-          if (banner.Imagem && banner.Imagem.startsWith('http://')) {
-            setHttpIssue(true);
-            // Try to secure the URL
-            banner.Imagem = secureUrl(banner.Imagem);
-          }
-          return banner;
-        });
-        
-        setBanners(processedBanners);
+        setBanners(data.results || []);
       } catch (error) {
         console.error('Error fetching banners:', error);
         toast.error('Erro ao carregar banners promocionais');
@@ -95,16 +73,6 @@ const Promotionals = () => {
             <span>Voltar</span>
           </Button>
         </div>
-
-        {httpIssue && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Algumas imagens estão usando URLs com HTTP que foram redirecionadas através do proxy.
-              Considere atualizar as fontes para HTTPS para melhor compatibilidade.
-            </AlertDescription>
-          </Alert>
-        )}
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -141,7 +109,6 @@ const Promotionals = () => {
                       className="object-cover w-full h-full rounded-md"
                       loading="lazy"
                       onError={(e) => {
-                        console.error(`Failed to load image: ${banner.Imagem}`);
                         (e.target as HTMLImageElement).src = 'https://placehold.co/600x300/gray/white?text=Imagem+não+disponível';
                       }}
                     />

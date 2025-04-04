@@ -1,3 +1,4 @@
+
 interface ApiConfig {
   apiToken: string;
   baseUrl: string;
@@ -173,18 +174,6 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
   };
   
   /**
-   * Helper function to convert HTTP URLs to HTTPS via Google Apps Script
-   */
-  const secureUrl = (url: string): string => {
-    if (url && url.startsWith('http://')) {
-      // Use Google Apps Script as a proxy for HTTP URLs
-      const scriptUrl = "https://script.google.com/macros/s/AKfycbzTWrmPw3ZBKp49-5UlNXsYI5NzxVlTwEXvgFBvEo_tz3Qf4GF_UQCz5dA6MXbj2J7I/exec";
-      return `${scriptUrl}?url=${encodeURIComponent(url)}`;
-    }
-    return url;
-  };
-  
-  /**
    * Update URLs for specific items in a table
    */
   const updateItemUrls = async (
@@ -289,7 +278,6 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
     updateRow,
     deleteRow,
     updateItemUrls,
-    secureUrl,
   };
 };
 
