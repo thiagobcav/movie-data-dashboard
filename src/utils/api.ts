@@ -1,11 +1,20 @@
+
 interface ApiConfig {
   apiToken: string;
   baseUrl: string;
   tableIds: {
     contents: string;
     episodes: string;
+    banners?: string;
+    categories?: string;
+    users?: string;
+    sessions?: string;
+    platforms?: string;
   };
 }
+
+// Define all possible table types that can be used in the application
+type TableType = "contents" | "episodes" | "banners" | "categories" | "users" | "sessions" | "platforms";
 
 /**
  * Creates an API client for interacting with Baserow.
@@ -20,12 +29,12 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
    * Fetches rows from a specified table.
    */
   const getTableRows = async (
-    tableType: "contents" | "episodes",
+    tableType: TableType,
     page: number = 1,
     size: number = 100,
     extraParams: string = ""
   ) => {
-    const tableId = tableIds[tableType];
+    const tableId = tableIds[tableType as keyof typeof tableIds];
     if (!tableId) {
       throw new Error(`Table ID for ${tableType} not configured`);
     }
@@ -56,10 +65,10 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
    * Creates a new row in the specified table.
    */
   const createRow = async (
-    tableType: "contents" | "episodes",
+    tableType: TableType,
     data: any
   ) => {
-    const tableId = tableIds[tableType];
+    const tableId = tableIds[tableType as keyof typeof tableIds];
     if (!tableId) {
       throw new Error(`Table ID for ${tableType} not configured`);
     }
@@ -95,11 +104,11 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
    * Updates an existing row in the specified table.
    */
   const updateRow = async (
-    tableType: "contents" | "episodes",
+    tableType: TableType,
     rowId: number,
     data: any
   ) => {
-    const tableId = tableIds[tableType];
+    const tableId = tableIds[tableType as keyof typeof tableIds];
     if (!tableId) {
       throw new Error(`Table ID for ${tableType} not configured`);
     }
@@ -133,8 +142,8 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
   /**
    * Delete an existing row in the specified table.
    */
-  const deleteRow = async (tableType: "contents" | "episodes", rowId: number) => {
-    const tableId = tableIds[tableType];
+  const deleteRow = async (tableType: TableType, rowId: number) => {
+    const tableId = tableIds[tableType as keyof typeof tableIds];
     if (!tableId) {
       throw new Error(`Table ID for ${tableType} not configured`);
     }
@@ -168,7 +177,7 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
    * Update URLs for specific items in a table
    */
   const updateItemUrls = async (
-    tableType: 'contents' | 'episodes',
+    tableType: "contents" | "episodes",
     sourceUrl: string,
     targetUrl: string,
     callbacks: {
