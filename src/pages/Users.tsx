@@ -16,7 +16,8 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { WhatsappIcon } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 // Create a dynamic schema that can adapt to whether the Whatsapp field exists
 const createUserFormSchema = (hasWhatsappField: boolean) => {
@@ -41,6 +42,18 @@ const createUserFormSchema = (hasWhatsappField: boolean) => {
   return z.object(baseSchema);
 };
 
+// Define the user form values type that includes the optional Whatsapp field
+interface UserFormValues {
+  Nome: string;
+  Email: string;
+  Senha: string;
+  Logins: number;
+  IMEI?: string;
+  Dias: number;
+  Pagamento: string;
+  Whatsapp?: string;
+}
+
 const Users = () => {
   const config = useConfig();
   const [data, setData] = useState<any[]>([]);
@@ -59,8 +72,6 @@ const Users = () => {
     createUserFormSchema(hasWhatsappField), 
     [hasWhatsappField]
   );
-
-  type UserFormValues = z.infer<typeof userFormSchema>;
   
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -348,7 +359,7 @@ const Users = () => {
         className={row.Whatsapp ? "text-green-600 hover:text-green-700 hover:bg-green-50" : ""}
         title={row.Whatsapp ? "Abrir WhatsApp" : "Número não cadastrado"}
       >
-        <WhatsappIcon size={16} />
+        <MessageSquare size={16} />
       </Button>
     );
   };
