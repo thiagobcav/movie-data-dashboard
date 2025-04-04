@@ -39,6 +39,7 @@ interface DataTableProps {
   onPageChange: (page: number) => void;
   onSearch?: (term: string) => void;
   onSort?: (key: string, direction: 'asc' | 'desc') => void;
+  customActions?: (row: any) => React.ReactNode;
 }
 
 const DataTable: React.FC<DataTableProps> = ({
@@ -54,6 +55,7 @@ const DataTable: React.FC<DataTableProps> = ({
   onPageChange,
   onSearch,
   onSort,
+  customActions,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{
@@ -302,7 +304,7 @@ const DataTable: React.FC<DataTableProps> = ({
                   </div>
                 </TableHead>
               ))}
-              {(onView || onEdit || onDelete) && (
+              {(onView || onEdit || onDelete || customActions) && (
                 <TableHead className="text-right">Ações</TableHead>
               )}
             </TableRow>
@@ -311,7 +313,7 @@ const DataTable: React.FC<DataTableProps> = ({
             {isLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (onView || onEdit || onDelete ? 1 : 0)}
+                  colSpan={columns.length + (onView || onEdit || onDelete || customActions ? 1 : 0)}
                   className="h-24 text-center"
                 >
                   <div className="flex flex-col items-center justify-center">
@@ -323,7 +325,7 @@ const DataTable: React.FC<DataTableProps> = ({
             ) : sortedData.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (onView || onEdit || onDelete ? 1 : 0)}
+                  colSpan={columns.length + (onView || onEdit || onDelete || customActions ? 1 : 0)}
                   className="h-24 text-center"
                 >
                   <p className="text-muted-foreground">Nenhum resultado encontrado</p>
@@ -339,9 +341,10 @@ const DataTable: React.FC<DataTableProps> = ({
                         : String(row[column.key] || '-')}
                     </TableCell>
                   ))}
-                  {(onView || onEdit || onDelete) && (
+                  {(onView || onEdit || onDelete || customActions) && (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {customActions && customActions(row)}
                         {onView && (
                           <Button
                             variant="ghost"

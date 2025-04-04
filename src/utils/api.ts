@@ -297,6 +297,8 @@ export class BaserowApi {
     delete cleanedData.Atualização;
     delete cleanedData.Hoje;
     delete cleanedData.Restam;
+    delete cleanedData.created_on;
+    delete cleanedData.updated_on;
     
     // Remover propriedades undefined, null ou vazias para evitar problemas de validação
     Object.keys(cleanedData).forEach(key => {
@@ -376,9 +378,135 @@ export class BaserowApi {
   
   /**
    * Função premium para substituir URLs base em conteúdos
+   * @param tableType Tipo da tabela ('contents' ou 'episodes')
    * @param sourceUrl URL base atual
    * @param targetUrl Nova URL base
    * @param options Opções adicionais como progresso e cancelamento
+   */
+  async updateItemUrls(
+    tableType: 'contents' | 'episodes',
+    sourceUrl: string, 
+    targetUrl: string, 
+    options: {
+      onProgress?: (processed: number, total: number) => void;
+      onComplete?: (updatedCount: number) => void;
+      onError?: (error: Error) => void;
+      shouldCancel?: () => boolean;
+    } = {}
+  ) {
+    try {
+      // Validar o tipo de tabela
+      if (tableType !== 'contents' && tableType !== 'episodes') {
+        throw new Error('Tipo de tabela inválido. Use "contents" ou "episodes".');
+      }
+      
+      const linkField = 'Link';
+      
+      // Buscar todos os itens (pode precisar de paginação para conjuntos grandes)
+      logger.info(`Iniciando atualização de URLs em ${tableType}: ${sourceUrl} -> ${targetUrl}`);
+      
+      const page1 = await this.getTableRows(tableType, 1, 100);
+      const totalItems = page1.count;
+      const totalPages = Math.ceil(totalItems / 100);
+      
+      logger.info(`Total de itens: ${totalItems}, páginas: ${totalPages}`);
+      
+      let allItems: any[] = page1.results;
+      
+      // Buscar páginas adicionais se necessário
+      for (let page = 2; page <= totalPages; page++) {
+        // Verificar cancelamento
+        if (options.shouldCancel && options.shouldCancel()) {
+          logger.info("Atualização de URLs cancelada pelo usuário");
+          return { updated: 0, total: totalItems };
+        }
+        
+        const pageData = await this.getTableRows(tableType, page, 100);
+        allItems = [...allItems, ...pageData.results];
+        
+        // Atualizar progresso de carregamento
+        if (options.onProgress) {
+          options.onProgress(allItems.length, totalItems);
+        }
+      }
+      
+      // Filtrar itens que contêm a URL base
+      const itemsToUpdate = allItems.filter(item => {
+        const link = item[linkField] || '';
+        return link.includes(sourceUrl);
+      });
+      
+      logger.info(`Itens que contêm a URL base ${sourceUrl}: ${itemsToUpdate.length}`);
+      
+      // Atualizar URLs
+      let updatedCount = 0;
+      
+      // Usar processamento em lote para evitar congelamento da UI
+      await processBatches(
+        itemsToUpdate,
+        async (item) => {
+          // Verificar cancelamento
+          if (options.shouldCancel && options.shouldCancel()) {
+            throw new Error("Atualização cancelada pelo usuário");
+          }
+          
+          // Substituir URL
+          const oldLink = item[linkField];
+          const newLink = oldLink.replace(sourceUrl, targetUrl);
+          
+          // Só atualizar se a URL for diferente
+          if (oldLink !== newLink) {
+            // Atualizar o item
+            await this.updateRow(tableType, item.id, {
+              ...item,
+              [linkField]: newLink
+            });
+            updatedCount++;
+            
+            logger.info(`URL atualizada: ${oldLink} -> ${newLink}`);
+          }
+          
+          return { id: item.id, oldLink, newLink };
+        },
+        {
+          batchSize: 5,
+          delayMs: 200,
+          onProgress: (processed, total) => {
+            if (options.onProgress) {
+              options.onProgress(processed, total);
+            }
+          },
+          onError: (error, item) => {
+            logger.error(`Erro ao atualizar URL do item ${item.id}:`, error);
+          },
+          shouldCancel: options.shouldCancel
+        }
+      );
+      
+      // Chamar callback de conclusão
+      if (options.onComplete) {
+        options.onComplete(updatedCount);
+      }
+      
+      logger.info(`Atualização de URLs concluída. ${updatedCount} itens atualizados.`);
+      
+      return {
+        updated: updatedCount,
+        total: itemsToUpdate.length
+      };
+    } catch (error) {
+      logger.error('Erro durante atualização de URLs:', error);
+      
+      if (options.onError) {
+        options.onError(error as Error);
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Função para atualizar URLs em conteúdos (compatibilidade com versões anteriores)
    */
   async updateContentUrls(
     sourceUrl: string, 
@@ -390,103 +518,23 @@ export class BaserowApi {
       shouldCancel?: () => boolean;
     } = {}
   ) {
-    try {
-      // Buscar todos os conteúdos (pode precisar de paginação para conjuntos grandes)
-      logger.info(`Iniciando atualização de URLs: ${sourceUrl} -> ${targetUrl}`);
-      
-      const page1 = await this.getTableRows('contents', 1, 100);
-      const totalItems = page1.count;
-      const totalPages = Math.ceil(totalItems / 100);
-      
-      logger.info(`Total de conteúdos: ${totalItems}, páginas: ${totalPages}`);
-      
-      let allContents: any[] = page1.results;
-      
-      // Buscar páginas adicionais se necessário
-      for (let page = 2; page <= totalPages; page++) {
-        // Verificar cancelamento
-        if (options.shouldCancel && options.shouldCancel()) {
-          logger.info("Atualização de URLs cancelada pelo usuário");
-          return { updated: 0, total: totalItems };
-        }
-        
-        const pageData = await this.getTableRows('contents', page, 100);
-        allContents = [...allContents, ...pageData.results];
-        
-        // Atualizar progresso de carregamento
-        if (options.onProgress) {
-          options.onProgress(allContents.length, totalItems);
-        }
-      }
-      
-      // Filtrar conteúdos que contêm a URL base
-      const contentsToUpdate = allContents.filter(content => {
-        const link = content.Link || '';
-        return link.includes(sourceUrl);
-      });
-      
-      logger.info(`Conteúdos que contêm a URL base ${sourceUrl}: ${contentsToUpdate.length}`);
-      
-      // Atualizar URLs
-      let updatedCount = 0;
-      
-      // Usar processamento em lote para evitar congelamento da UI
-      await processBatches(
-        contentsToUpdate,
-        async (content) => {
-          // Substituir URL
-          const oldLink = content.Link;
-          const newLink = oldLink.replace(sourceUrl, targetUrl);
-          
-          // Só atualizar se a URL for diferente
-          if (oldLink !== newLink) {
-            // Atualizar o conteúdo
-            await this.updateRow('contents', content.id, {
-              ...content,
-              Link: newLink
-            });
-            updatedCount++;
-            
-            logger.info(`URL atualizada: ${oldLink} -> ${newLink}`);
-          }
-          
-          return { id: content.id, oldLink, newLink };
-        },
-        {
-          batchSize: 5,
-          delayMs: 200,
-          onProgress: (processed, total) => {
-            if (options.onProgress) {
-              options.onProgress(processed, total);
-            }
-          },
-          onError: (error, content) => {
-            logger.error(`Erro ao atualizar URL do conteúdo ${content.id}:`, error);
-          },
-          shouldCancel: options.shouldCancel
-        }
-      );
-      
-      // Chamar callback de conclusão
-      if (options.onComplete) {
-        options.onComplete(updatedCount);
-      }
-      
-      logger.info(`Atualização de URLs concluída. ${updatedCount} conteúdos atualizados.`);
-      
-      return {
-        updated: updatedCount,
-        total: contentsToUpdate.length
-      };
-    } catch (error) {
-      logger.error('Erro durante atualização de URLs:', error);
-      
-      if (options.onError) {
-        options.onError(error as Error);
-      }
-      
-      throw error;
-    }
+    return this.updateItemUrls('contents', sourceUrl, targetUrl, options);
+  }
+  
+  /**
+   * Função para atualizar URLs em episódios
+   */
+  async updateEpisodeUrls(
+    sourceUrl: string, 
+    targetUrl: string, 
+    options: {
+      onProgress?: (processed: number, total: number) => void;
+      onComplete?: (updatedCount: number) => void;
+      onError?: (error: Error) => void;
+      shouldCancel?: () => boolean;
+    } = {}
+  ) {
+    return this.updateItemUrls('episodes', sourceUrl, targetUrl, options);
   }
 }
 

@@ -18,6 +18,7 @@ interface CrudDialogProps {
   children: React.ReactNode;
   onSave: () => void;
   isLoading?: boolean;
+  maxHeight?: string;
 }
 
 const CrudDialog: React.FC<CrudDialogProps> = ({
@@ -27,6 +28,7 @@ const CrudDialog: React.FC<CrudDialogProps> = ({
   children,
   onSave,
   isLoading = false,
+  maxHeight = "70vh",
 }) => {
   const isMobile = useIsMobile();
   
@@ -36,7 +38,7 @@ const CrudDialog: React.FC<CrudDialogProps> = ({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="h-[70vh] pr-4">
+        <ScrollArea className={`${maxHeight} pr-4`}>
           <div className="py-4 px-1">
             {children}
           </div>
