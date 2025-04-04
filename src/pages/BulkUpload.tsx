@@ -259,7 +259,6 @@ function BulkUpload() {
       const contentData = {
         Nome: item.title || 'Sem título',
         Fonte: item.url || '',
-        Link: item.url || '', // Ensure Link field is populated with the URL
         Cover: item.tvgLogo || '',
         Capa: item.tvgLogo || '',
         Categoria: item.groupTitle || 'Outros',
@@ -293,22 +292,16 @@ function BulkUpload() {
       let season = 1;
       let episode = 1;
       
-      const tEpMatch = item.title.match(/T(\d+)\|EP(\d+)/i);
-      if (tEpMatch) {
-        season = parseInt(tEpMatch[1], 10);
-        episode = parseInt(tEpMatch[2], 10);
-      } else {
-        const seasonEpisodeMatch = item.title.match(/[Ss](\d+)[Ee](\d+)|[Tt](\d+)[Ee](\d+)/);
-        if (seasonEpisodeMatch) {
-          season = parseInt(seasonEpisodeMatch[1] || seasonEpisodeMatch[3], 10);
-          episode = parseInt(seasonEpisodeMatch[2] || seasonEpisodeMatch[4], 10);
-        }
+      const seasonEpisodeMatch = item.title.match(/[Ss](\d+)[Ee](\d+)|[Tt](\d+)[Ee](\d+)/);
+      if (seasonEpisodeMatch) {
+        season = parseInt(seasonEpisodeMatch[1] || seasonEpisodeMatch[3], 10);
+        episode = parseInt(seasonEpisodeMatch[2] || seasonEpisodeMatch[4], 10);
       }
       
       const episodeData = {
         Nome: item.title || 'Sem título',
         Fonte: item.url || '',
-        Link: item.url || '', // Ensure Link field is populated with the URL
+        Link: item.url || '',
         Capa: item.tvgLogo || '',
         Temporada: season,
         Episódio: episode,

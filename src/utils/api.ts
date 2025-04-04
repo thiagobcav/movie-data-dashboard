@@ -1,275 +1,543 @@
+
+import { toast } from 'sonner';
+import logger from './logger';
+import { processBatches } from './batchProcessor';
+
+export type TableType = 
+  | 'contents' 
+  | 'episodes' 
+  | 'banners' 
+  | 'categories' 
+  | 'users' 
+  | 'sessions' 
+  | 'platforms';
+
 interface ApiConfig {
   apiToken: string;
   baseUrl: string;
-  tableIds: {
-    contents: string;
-    episodes: string;
-  };
+  tableIds: Record<TableType, string>;
 }
 
-/**
- * Creates an API client for interacting with Baserow.
- */
-export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
-  const headers = {
-    Authorization: `Token ${apiToken}`,
-    "Content-Type": "application/json",
-  };
+export class BaserowApi {
+  private apiToken: string;
+  private baseUrl: string;
+  private tableIds: Record<TableType, string>;
+  private proxyUrl: string = "https://script.google.com/macros/s/AKfycbymxuIli4v1MHzIr-6vhm2IsRZOoGM2QetJqCGwPhqltBxAMXX-Yp5bbK8esK4GlLLs9g/exec";
+
+  constructor(config: ApiConfig) {
+    this.apiToken = config.apiToken;
+    this.baseUrl = config.baseUrl;
+    this.tableIds = config.tableIds;
+  }
+
+  private async request(endpoint: string, options: RequestInit = {}) {
+    if (!this.apiToken) {
+      const errorMsg = 'API Token não configurado';
+      logger.error(errorMsg);
+      toast.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const directUrl = `${this.baseUrl}/${endpoint}`;
+    const isHttpUrl = this.baseUrl.startsWith('http:');
+    const isMixedContent = typeof window !== 'undefined' && 
+        window.location.protocol === 'https:' && 
+        isHttpUrl;
+    
+    try {
+      // Determine if we need to use the proxy
+      if (isMixedContent) {
+        // Log that we're using the proxy
+        logger.info('Usando proxy para contornar restrições de conteúdo misto');
+        
+        // Encode the full URL for the proxy
+        const fullUrl = `${directUrl}`;
+        const encodedUrl = encodeURIComponent(fullUrl);
+        
+        // Determine the request method (default to GET if not specified)
+        const method = options.method || 'GET';
+        
+        // Build the base proxy request URL
+        let proxyRequestUrl = `${this.proxyUrl}?token=${this.apiToken}&url=${encodedUrl}&method=${method}`;
+        
+        // Add the body parameter for POST, PATCH, DELETE methods if needed
+        let bodyParam = '';
+        if ((method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE') && options.body) {
+          // Log the request body for debugging
+          logger.info('Request body:', options.body);
+          bodyParam = `&body=${encodeURIComponent(options.body as string)}`;
+        }
+        
+        // Build the final URL with all parameters
+        const finalProxyUrl = proxyRequestUrl + bodyParam;
+        
+        logger.info(`Enviando requisição ${method} para o proxy:`, finalProxyUrl);
+        
+        const response = await fetch(finalProxyUrl);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error('Proxy response error:', { status: response.status, body: errorText });
+          throw new Error(`HTTP error via proxy: ${response.status} - ${errorText || 'Unknown error'}`);
+        }
+        
+        const responseData = await response.json();
+        
+        // Check if the proxy response contains error information
+        if (responseData.error) {
+          logger.error('API error via proxy:', responseData);
+          
+          if (responseData.error.includes('ERROR_REQUEST_BODY_VALIDATION')) {
+            // Log more details about the validation error
+            logger.error('Erro de validação de dados:', { 
+              error: responseData.error, 
+              detail: responseData.detail || 'Sem detalhes adicionais'
+            });
+            
+            throw new Error(`Erro de validação: Verifique os campos obrigatórios. Detalhes: ${responseData.detail || 'Formato de dados inválido'}`);
+          }
+          
+          throw new Error(responseData.error);
+        }
+        
+        return responseData;
+      } 
+      // Direct request (no proxy needed)
+      else {
+        logger.info('Enviando requisição direta para:', directUrl);
+        
+        if (options.body) {
+          logger.info('Request body:', options.body);
+        }
+        
+        const defaultOptions: RequestInit = {
+          headers: {
+            'Authorization': `Token ${this.apiToken}`,
+            'Content-Type': 'application/json',
+          },
+        };
+        
+        const response = await fetch(directUrl, {
+          ...defaultOptions,
+          ...options,
+          headers: {
+            ...defaultOptions.headers,
+            ...(options.headers || {}),
+          },
+        });
+        
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type');
+          let errorData: any = {};
+          
+          if (contentType && contentType.includes('application/json')) {
+            errorData = await response.json().catch(() => ({}));
+          } else {
+            const text = await response.text().catch(() => '');
+            errorData = { error: text || `HTTP error ${response.status}` };
+          }
+          
+          logger.error('API error details:', errorData);
+          
+          if (errorData.error && errorData.error.includes('ERROR_REQUEST_BODY_VALIDATION')) {
+            logger.error('Erro de validação de dados:', errorData);
+            
+            throw new Error(`Erro de validação: Verifique os campos obrigatórios. Detalhes: ${errorData.detail || 'Formato de dados inválido'}`);
+          }
+          
+          if (errorData.errors) {
+            const errorDetails = Object.entries(errorData.errors)
+              .map(([field, messages]) => `${field}: ${messages}`)
+              .join(', ');
+            
+            logger.error('Erros de validação por campo:', errorData.errors);
+            throw new Error(`Erro de validação: ${errorDetails}`);
+          }
+          
+          throw new Error(errorData.error || errorData.detail || `HTTP error ${response.status}`);
+        }
+
+        // Verifica se a resposta contém JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        }
+        
+        // Se não for JSON, retorna o texto
+        return await response.text();
+      }
+    } catch (error) {
+      logger.error('API request failed:', error);
+      
+      if ((error as Error).message.includes('Failed to fetch') ||
+          (error as Error).message.includes('NetworkError') ||
+          (error as Error).message.includes('Network request failed')) {
+        
+        if (isMixedContent) {
+          toast.error('Erro ao acessar API via proxy.', {
+            description: 'Verifique se o URL e token estão corretos.'
+          });
+        } else {
+          toast.error('Erro de conexão com a API.', {
+            description: 'Verifique se a URL da API está correta e se o servidor está acessível.'
+          });
+        }
+      } else {
+        toast.error(`Erro na requisição: ${(error as Error).message}`);
+      }
+      
+      throw error;
+    }
+  }
 
   /**
-   * Fetches rows from a specified table.
+   * Obtém linhas de uma tabela com suporte para paginação, ordenação e pesquisa
+   * @param tableType Tipo da tabela
+   * @param page Número da página (começa em 1)
+   * @param pageSize Tamanho da página
+   * @param queryParams Parâmetros adicionais (order_by, search)
+   * @returns Resposta da API
    */
-  const getTableRows = async (
-    tableType: "contents" | "episodes",
-    page: number = 1,
-    size: number = 100,
-    extraParams: string = ""
-  ) => {
-    const tableId = tableIds[tableType];
+  async getTableRows(tableType: TableType, page = 1, pageSize = 20, queryParams?: string) {
+    const tableId = this.tableIds[tableType];
+    
     if (!tableId) {
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
-    try {
-      const response = await fetch(
-        `${baseUrl}/api/database/rows/table/${tableId}?page=${page}&size=${size}&${extraParams}`,
-        {
-          method: "GET",
-          headers: headers,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch rows from table ${tableType}: ${response.statusText}`
-        );
+    let endpoint = `database/rows/table/${tableId}/?user_field_names=true&page=${page}&size=${pageSize}`;
+    
+    // Add query parameters if provided
+    if (queryParams) {
+      // Verifica se os parâmetros já começam com & (para não duplicar)
+      if (queryParams.startsWith('&')) {
+        endpoint += queryParams;
+      } else if (queryParams.startsWith('order_by') || queryParams.startsWith('search')) {
+        endpoint += `&${queryParams}`;
+      } else {
+        endpoint += `&${queryParams}`;
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`Error fetching rows from table ${tableType}:`, error);
-      throw error;
     }
-  };
 
-  /**
-   * Creates a new row in the specified table.
-   */
-  const createRow = async (
-    tableType: "contents" | "episodes",
-    data: any
-  ) => {
-    const tableId = tableIds[tableType];
+    return this.request(endpoint);
+  }
+
+  async createRow(tableType: TableType, data: Record<string, any>) {
+    const tableId = this.tableIds[tableType];
+    
     if (!tableId) {
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
-    try {
-      const response = await fetch(
-        `${baseUrl}/api/database/rows/table/${tableId}/`,
-        {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify(data),
-        }
-      );
+    // Certifique-se de que os dados estão no formato correto
+    const cleanedData = this.sanitizeData(data, true);
+    
+    logger.info(`Criando registro na tabela ${tableType}:`, cleanedData);
 
-      if (!response.ok) {
-        const errorBody = await response.json();
-        console.error("Error creating row:", errorBody);
-        throw new Error(
-          `Failed to create row in table ${tableType}: ${response.statusText} - ${JSON.stringify(
-            errorBody
-          )}`
-        );
-      }
+    return this.request(`database/rows/table/${tableId}/?user_field_names=true`, {
+      method: 'POST',
+      body: JSON.stringify(cleanedData),
+    });
+  }
 
-      return await response.json();
-    } catch (error) {
-      console.error(`Error creating row in table ${tableType}:`, error);
-      throw error;
-    }
-  };
-
-  /**
-   * Updates an existing row in the specified table.
-   */
-  const updateRow = async (
-    tableType: "contents" | "episodes",
-    rowId: number,
-    data: any
-  ) => {
-    const tableId = tableIds[tableType];
+  async updateRow(tableType: TableType, rowId: number, data: Record<string, any>) {
+    const tableId = this.tableIds[tableType];
+    
     if (!tableId) {
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
-    try {
-      const response = await fetch(
-        `${baseUrl}/api/database/rows/table/${tableId}/${rowId}/`,
-        {
-          method: "PATCH",
-          headers: headers,
-          body: JSON.stringify(data),
-        }
-      );
+    // Certifique-se de que os dados estão no formato correto
+    const cleanedData = this.sanitizeData(data, false);
+    
+    logger.info(`Atualizando registro ${rowId} na tabela ${tableType}:`, cleanedData);
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to update row ${rowId} in table ${tableType}: ${response.statusText}`
-        );
-      }
+    return this.request(`database/rows/table/${tableId}/${rowId}/?user_field_names=true`, {
+      method: 'PATCH',
+      body: JSON.stringify(cleanedData),
+    });
+  }
 
-      return await response.json();
-    } catch (error) {
-      console.error(
-        `Error updating row ${rowId} in table ${tableType}:`,
-        error
-      );
-      throw error;
-    }
-  };
-
-  /**
-   * Delete an existing row in the specified table.
-   */
-  const deleteRow = async (tableType: "contents" | "episodes", rowId: number) => {
-    const tableId = tableIds[tableType];
+  async deleteRow(tableType: TableType, rowId: number) {
+    const tableId = this.tableIds[tableType];
+    
     if (!tableId) {
+      const errorMsg = `ID da tabela ${tableType} não configurado`;
+      logger.error(errorMsg);
+      toast.error(errorMsg);
       throw new Error(`Table ID for ${tableType} not configured`);
     }
 
-    try {
-      const response = await fetch(
-        `${baseUrl}/api/database/rows/table/${tableId}/${rowId}/`,
-        {
-          method: "DELETE",
-          headers: headers,
-        }
-      );
+    logger.info(`Excluindo registro ${rowId} da tabela ${tableType}`);
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to delete row ${rowId} in table ${tableType}: ${response.statusText}`
-        );
+    return this.request(`database/rows/table/${tableId}/${rowId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Função para limpar e validar os dados antes de enviar para a API
+  private sanitizeData(data: Record<string, any>, isCreate: boolean = false): Record<string, any> {
+    const cleanedData = { ...data };
+    
+    // Remover campos `id` e `order` que não devem ser enviados
+    delete cleanedData.id;
+    delete cleanedData.order;
+    
+    // Remover campos de data automáticos que não devem ser enviados manualmente
+    delete cleanedData.Data;
+    delete cleanedData.Atualização;
+    delete cleanedData.Hoje;
+    delete cleanedData.Restam;
+    delete cleanedData.created_on;
+    delete cleanedData.updated_on;
+    
+    // Remover propriedades undefined, null ou vazias para evitar problemas de validação
+    Object.keys(cleanedData).forEach(key => {
+      if (cleanedData[key] === undefined || cleanedData[key] === null) {
+        delete cleanedData[key];
+      } else if (typeof cleanedData[key] === 'string' && cleanedData[key].trim() === '') {
+        delete cleanedData[key];
       }
-
-      return response.status === 204;
-    } catch (error) {
-      console.error(
-        `Error deleting row ${rowId} in table ${tableType}:`,
-        error
-      );
-      throw error;
+    });
+    
+    // Garante que as datas estão no formato YYYY-MM-DD
+    if (cleanedData.Pagamento) {
+      try {
+        // Se já for uma string no formato YYYY-MM-DD, não faz nada
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanedData.Pagamento)) {
+          const date = new Date(cleanedData.Pagamento);
+          if (isNaN(date.getTime())) {
+            throw new Error('Data inválida');
+          }
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          cleanedData.Pagamento = `${year}-${month}-${day}`;
+        }
+      } catch (e) {
+        console.error('Erro ao formatar data:', e);
+        // Em caso de erro, deixa como está
+      }
     }
-  };
+    
+    // Garante que campos numéricos sejam números
+    if ('Dias' in cleanedData && typeof cleanedData.Dias !== 'number') {
+      cleanedData.Dias = parseInt(cleanedData.Dias) || 0;
+    }
+    
+    if ('Logins' in cleanedData && typeof cleanedData.Logins !== 'number') {
+      cleanedData.Logins = parseInt(cleanedData.Logins) || 0;
+    }
+    
+    if ('Temporada' in cleanedData && typeof cleanedData.Temporada !== 'number') {
+      cleanedData.Temporada = parseInt(cleanedData.Temporada) || 1;
+    }
+    
+    if ('Episódio' in cleanedData && typeof cleanedData.Episódio !== 'number') {
+      cleanedData.Episódio = parseInt(cleanedData.Episódio) || 1;
+    }
+    
+    // Certifique-se de que o IMEI seja uma string JSON válida
+    if (cleanedData.IMEI && typeof cleanedData.IMEI === 'string') {
+      try {
+        // Verifica se já é um JSON válido
+        JSON.parse(cleanedData.IMEI);
+      } catch (e) {
+        // Se não for um JSON válido, converte para um JSON válido
+        cleanedData.IMEI = JSON.stringify({
+          IMEI: cleanedData.IMEI,
+          Dispositivo: ''
+        });
+      }
+    }
+    
+    // Verifica se há campos que nunca devem ser nulos
+    if ('Nome' in cleanedData && !cleanedData.Nome) {
+      cleanedData.Nome = 'Sem nome';
+    }
+    
+    if ('Fonte' in cleanedData && !cleanedData.Fonte) {
+      cleanedData.Fonte = cleanedData.Link || cleanedData.url || '';
+    }
+    
+    if ('Link' in cleanedData && !cleanedData.Link) {
+      cleanedData.Link = cleanedData.Fonte || cleanedData.url || '';
+    }
+    
+    return cleanedData;
+  }
   
   /**
-   * Update URLs for specific items in a table
+   * Função premium para substituir URLs base em conteúdos
+   * @param tableType Tipo da tabela ('contents' ou 'episodes')
+   * @param sourceUrl URL base atual
+   * @param targetUrl Nova URL base
+   * @param options Opções adicionais como progresso e cancelamento
    */
-  const updateItemUrls = async (
+  async updateItemUrls(
     tableType: 'contents' | 'episodes',
-    sourceUrl: string,
-    targetUrl: string,
-    callbacks: {
+    sourceUrl: string, 
+    targetUrl: string, 
+    options: {
       onProgress?: (processed: number, total: number) => void;
       onComplete?: (updatedCount: number) => void;
       onError?: (error: Error) => void;
       shouldCancel?: () => boolean;
     } = {}
-  ) => {
+  ) {
     try {
-      const tableId = tableIds[tableType];
-      if (!tableId) {
-        throw new Error(`Table ID for ${tableType} not configured`);
+      // Validar o tipo de tabela
+      if (tableType !== 'contents' && tableType !== 'episodes') {
+        throw new Error('Tipo de tabela inválido. Use "contents" ou "episodes".');
       }
       
-      let allItems: any[] = [];
-      let page = 1;
-      const pageSize = 200;
-      let hasMore = true;
+      const linkField = 'Link';
       
-      // Field to check based on table type
-      const urlField = tableType === 'episodes' ? 'Fonte' : 'Fonte';
+      // Buscar todos os itens (pode precisar de paginação para conjuntos grandes)
+      logger.info(`Iniciando atualização de URLs em ${tableType}: ${sourceUrl} -> ${targetUrl}`);
       
-      // First, get all items that contain the source URL
-      while (hasMore) {
-        const response = await getTableRows(tableType, page, pageSize);
-        const items = response.results;
-        
-        if (!items || items.length === 0) {
-          hasMore = false;
-          break;
+      const page1 = await this.getTableRows(tableType, 1, 100);
+      const totalItems = page1.count;
+      const totalPages = Math.ceil(totalItems / 100);
+      
+      logger.info(`Total de itens: ${totalItems}, páginas: ${totalPages}`);
+      
+      let allItems: any[] = page1.results;
+      
+      // Buscar páginas adicionais se necessário
+      for (let page = 2; page <= totalPages; page++) {
+        // Verificar cancelamento
+        if (options.shouldCancel && options.shouldCancel()) {
+          logger.info("Atualização de URLs cancelada pelo usuário");
+          return { updated: 0, total: totalItems };
         }
         
-        const filteredItems = items.filter(item => 
-          item[urlField] && item[urlField].includes(sourceUrl)
-        );
+        const pageData = await this.getTableRows(tableType, page, 100);
+        allItems = [...allItems, ...pageData.results];
         
-        allItems.push(...filteredItems);
-        
-        if (items.length < pageSize) {
-          hasMore = false;
-        } else {
-          page++;
+        // Atualizar progresso de carregamento
+        if (options.onProgress) {
+          options.onProgress(allItems.length, totalItems);
         }
       }
       
-      console.log(`Found ${allItems.length} ${tableType} with URLs containing "${sourceUrl}"`);
+      // Filtrar itens que contêm a URL base
+      const itemsToUpdate = allItems.filter(item => {
+        const link = item[linkField] || '';
+        return link.includes(sourceUrl);
+      });
       
-      if (allItems.length === 0) {
-        callbacks.onComplete?.(0);
-        return 0;
-      }
+      logger.info(`Itens que contêm a URL base ${sourceUrl}: ${itemsToUpdate.length}`);
       
+      // Atualizar URLs
       let updatedCount = 0;
       
-      // Process all matched items
-      for (let i = 0; i < allItems.length; i++) {
-        if (callbacks.shouldCancel?.()) {
-          console.log('URL update operation cancelled');
-          callbacks.onComplete?.(updatedCount);
-          return updatedCount;
-        }
-        
-        const item = allItems[i];
-        const sourceFieldValue = item[urlField];
-        
-        if (sourceFieldValue) {
-          // Standard URL replacement
-          const updatedUrl = sourceFieldValue.replace(sourceUrl, targetUrl);
-          
-          // Also update Link field if it exists and contains the source URL
-          const updates: any = { [urlField]: updatedUrl };
-          
-          // Check if Link field exists and contains sourceUrl
-          if (item.Link && item.Link.includes(sourceUrl)) {
-            updates.Link = item.Link.replace(sourceUrl, targetUrl);
+      // Usar processamento em lote para evitar congelamento da UI
+      await processBatches(
+        itemsToUpdate,
+        async (item) => {
+          // Verificar cancelamento
+          if (options.shouldCancel && options.shouldCancel()) {
+            throw new Error("Atualização cancelada pelo usuário");
           }
           
-          await updateRow(tableType, item.id, updates);
-          updatedCount++;
+          // Substituir URL
+          const oldLink = item[linkField];
+          const newLink = oldLink.replace(sourceUrl, targetUrl);
+          
+          // Só atualizar se a URL for diferente
+          if (oldLink !== newLink) {
+            // Atualizar o item
+            await this.updateRow(tableType, item.id, {
+              ...item,
+              [linkField]: newLink
+            });
+            updatedCount++;
+            
+            logger.info(`URL atualizada: ${oldLink} -> ${newLink}`);
+          }
+          
+          return { id: item.id, oldLink, newLink };
+        },
+        {
+          batchSize: 5,
+          delayMs: 200,
+          onProgress: (processed, total) => {
+            if (options.onProgress) {
+              options.onProgress(processed, total);
+            }
+          },
+          onError: (error, item) => {
+            logger.error(`Erro ao atualizar URL do item ${item.id}:`, error);
+          },
+          shouldCancel: options.shouldCancel
         }
-        
-        callbacks.onProgress?.(i + 1, allItems.length);
+      );
+      
+      // Chamar callback de conclusão
+      if (options.onComplete) {
+        options.onComplete(updatedCount);
       }
       
-      callbacks.onComplete?.(updatedCount);
-      return updatedCount;
+      logger.info(`Atualização de URLs concluída. ${updatedCount} itens atualizados.`);
+      
+      return {
+        updated: updatedCount,
+        total: itemsToUpdate.length
+      };
     } catch (error) {
-      console.error('Error updating URLs:', error);
-      callbacks.onError?.(error as Error);
+      logger.error('Erro durante atualização de URLs:', error);
+      
+      if (options.onError) {
+        options.onError(error as Error);
+      }
+      
       throw error;
     }
-  };
+  }
+  
+  /**
+   * Função para atualizar URLs em conteúdos (compatibilidade com versões anteriores)
+   */
+  async updateContentUrls(
+    sourceUrl: string, 
+    targetUrl: string, 
+    options: {
+      onProgress?: (processed: number, total: number) => void;
+      onComplete?: (updatedCount: number) => void;
+      onError?: (error: Error) => void;
+      shouldCancel?: () => boolean;
+    } = {}
+  ) {
+    return this.updateItemUrls('contents', sourceUrl, targetUrl, options);
+  }
+  
+  /**
+   * Função para atualizar URLs em episódios
+   */
+  async updateEpisodeUrls(
+    sourceUrl: string, 
+    targetUrl: string, 
+    options: {
+      onProgress?: (processed: number, total: number) => void;
+      onComplete?: (updatedCount: number) => void;
+      onError?: (error: Error) => void;
+      shouldCancel?: () => boolean;
+    } = {}
+  ) {
+    return this.updateItemUrls('episodes', sourceUrl, targetUrl, options);
+  }
+}
 
-  return {
-    getTableRows,
-    createRow,
-    updateRow,
-    deleteRow,
-    updateItemUrls,
-  };
+export const createApi = (config: ApiConfig) => {
+  return new BaserowApi(config);
 };
-
-export default createApi;
