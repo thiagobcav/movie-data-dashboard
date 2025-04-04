@@ -14,6 +14,8 @@ import { ProgressDialog } from '@/components/ui/progress-dialog';
 import { toast } from 'sonner';
 import logger from '@/utils/logger';
 import { Lock } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const Settings = () => {
   const config = useConfig();
@@ -31,6 +33,7 @@ const Settings = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [updatedCount, setUpdatedCount] = useState(0);
   const [error, setError] = useState({ isError: false, message: "" });
+  const [isEpisodesMode, setIsEpisodesMode] = useState(false);
 
   const handleUpdateUrls = async () => {
     if (!sourceUrl || !targetUrl) {
@@ -55,9 +58,10 @@ const Settings = () => {
         tableIds: config.tableIds
       });
       
-      logger.info(`Iniciando substituição de URLs: ${sourceUrl} -> ${targetUrl}`);
+      const tableType = isEpisodesMode ? 'episodes' : 'contents';
+      logger.info(`Iniciando substituição de URLs em ${tableType}: ${sourceUrl} -> ${targetUrl}`);
       
-      await api.updateContentUrls(sourceUrl, targetUrl, {
+      await api.updateItemUrls(tableType, sourceUrl, targetUrl, {
         onProgress: (processed, total) => {
           setProcessedCount(processed);
           setTotalCount(total);
@@ -145,6 +149,17 @@ const Settings = () => {
                   <p className="text-sm text-muted-foreground">
                     Substitua URLs em vários conteúdos de uma vez, mantendo a estrutura específica de cada link.
                   </p>
+                  
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Switch 
+                      id="table-mode" 
+                      checked={isEpisodesMode}
+                      onCheckedChange={setIsEpisodesMode}
+                    />
+                    <Label htmlFor="table-mode">
+                      {isEpisodesMode ? "Substituir URLs de Episódios" : "Substituir URLs de Conteúdos"}
+                    </Label>
+                  </div>
                   
                   <div className="grid gap-4">
                     <div className="space-y-2">
