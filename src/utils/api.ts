@@ -1,5 +1,3 @@
-
-
 interface ApiConfig {
   apiToken: string;
   baseUrl: string;
@@ -175,24 +173,13 @@ export const createApi = ({ apiToken, baseUrl, tableIds }: ApiConfig) => {
   };
   
   /**
-   * Helper function to convert HTTP URLs to HTTPS when possible
+   * Helper function to convert HTTP URLs to HTTPS via Google Apps Script
    */
   const secureUrl = (url: string): string => {
     if (url && url.startsWith('http://')) {
-      // Try to convert to HTTPS, but only for domains that likely support it
-      const secureDomainsPatterns = [
-        'imgur.com', 'i.imgur.com', 
-        'mmfilmes.tv', 
-        'cloudfront.net', 
-        'akamaized.net',
-        'amazonaws.com'
-      ];
-      
-      // Check if this is a domain we can safely convert
-      const canSecure = secureDomainsPatterns.some(domain => url.includes(domain));
-      if (canSecure) {
-        return url.replace('http://', 'https://');
-      }
+      // Use Google Apps Script as a proxy for HTTP URLs
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbzTWrmPw3ZBKp49-5UlNXsYI5NzxVlTwEXvgFBvEo_tz3Qf4GF_UQCz5dA6MXbj2J7I/exec";
+      return `${scriptUrl}?url=${encodeURIComponent(url)}`;
     }
     return url;
   };

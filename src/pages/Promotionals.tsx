@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -28,23 +27,13 @@ const Promotionals = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [httpIssue, setHttpIssue] = useState(false);
 
-  // Helper to convert HTTP urls to HTTPS when possible
+  // Helper to convert HTTP urls to HTTPS via Google Apps Script
   const secureUrl = (url: string): string => {
     if (url && url.startsWith('http://')) {
-      // Try to convert to HTTPS, but only for domains that likely support it
-      const secureDomainsPatterns = [
-        'imgur.com', 'i.imgur.com', 
-        'mmfilmes.tv', 
-        'cloudfront.net', 
-        'akamaized.net',
-        'amazonaws.com'
-      ];
-      
-      // Check if this is a domain we can safely convert
-      const canSecure = secureDomainsPatterns.some(domain => url.includes(domain));
-      if (canSecure) {
-        return url.replace('http://', 'https://');
-      }
+      // Convert HTTP to HTTPS via Google Apps Script proxy
+      // Format: https://script.google.com/macros/s/[SCRIPT_ID]/exec?url=[HTTP_URL]
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbzTWrmPw3ZBKp49-5UlNXsYI5NzxVlTwEXvgFBvEo_tz3Qf4GF_UQCz5dA6MXbj2J7I/exec";
+      return `${scriptUrl}?url=${encodeURIComponent(url)}`;
     }
     return url;
   };
@@ -108,10 +97,10 @@ const Promotionals = () => {
         </div>
 
         {httpIssue && (
-          <Alert variant="warning" className="mb-4">
+          <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Algumas imagens estão usando URLs com HTTP que podem ser bloqueadas. 
+              Algumas imagens estão usando URLs com HTTP que foram redirecionadas através do proxy.
               Considere atualizar as fontes para HTTPS para melhor compatibilidade.
             </AlertDescription>
           </Alert>

@@ -111,6 +111,17 @@ const isValidUrl = (url: string): boolean => {
 };
 
 /**
+ * Convert HTTP URLs to HTTPS via Google Apps Script proxy
+ */
+const secureHttpUrl = (url: string): string => {
+  if (url && url.startsWith('http://')) {
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbzTWrmPw3ZBKp49-5UlNXsYI5NzxVlTwEXvgFBvEo_tz3Qf4GF_UQCz5dA6MXbj2J7I/exec";
+    return `${scriptUrl}?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+};
+
+/**
  * Parse M3U content into structured array of items
  */
 export const parseM3U = (content: string): M3UItem[] => {
@@ -146,12 +157,17 @@ export const parseM3U = (content: string): M3UItem[] => {
       
       if (tvgIdMatch) currentItem.tvgId = tvgIdMatch[1];
       if (tvgNameMatch) currentItem.tvgName = tvgNameMatch[1];
-      if (tvgLogoMatch) currentItem.tvgLogo = tvgLogoMatch[1];
+      if (tvgLogoMatch) {
+        // Convert any HTTP logo URLs to use the proxy
+        const logoUrl = tvgLogoMatch[1];
+        currentItem.tvgLogo = logoUrl.startsWith('http://') ? secureHttpUrl(logoUrl) : logoUrl;
+      }
       if (groupTitleMatch) currentItem.groupTitle = groupTitleMatch[1];
     } else if ((line.startsWith('http://') || line.startsWith('https://')) && currentItem) {
       // This is a URL line - validate it's actually a URL
       if (isValidUrl(line)) {
-        currentItem.url = line;
+        // For HTTP URLs, convert to use the Google Apps Script proxy
+        currentItem.url = line.startsWith('http://') ? secureHttpUrl(line) : line;
         
         // Add the completed item to the array
         const item = currentItem as M3UItem;
@@ -175,5 +191,6 @@ export default {
   parseM3U,
   parseEpisodeTitle,
   determineContentType,
-  isValidUrl
+  isValidUrl,
+  secureHttpUrl
 };
