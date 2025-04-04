@@ -16,13 +16,15 @@ const determineContentType = (item: M3UItem): M3UItem['type'] => {
   const title = item.title.toLowerCase();
   const groupTitle = (item.groupTitle || '').toLowerCase();
   
-  // Check for series indicators
+  // Check for series indicators with improved T#|EP# pattern detection
   if (
     title.includes('s01') || title.includes('s02') || 
     title.includes('temporada') || title.includes('episódio') || 
     title.includes('episodio') || title.includes('ep.') || 
     groupTitle.includes('série') || groupTitle.includes('series') || 
-    groupTitle.includes('show') || /t\d+e\d+/i.test(title)
+    groupTitle.includes('show') || /t\d+e\d+/i.test(title) ||
+    /t\d+\|ep\d+/i.test(title) || // Added pattern for T#|EP# format
+    /temporada.*\d+.*epis[oó]dio.*\d+/i.test(title)
   ) {
     return 'series';
   }
@@ -30,7 +32,7 @@ const determineContentType = (item: M3UItem): M3UItem['type'] => {
   // Check for movie indicators
   if (
     groupTitle.includes('filme') || groupTitle.includes('movie') || 
-    groupTitle.includes('cinema') || title.includes('(') && title.includes(')') || 
+    groupTitle.includes('cinema') || (title.includes('(') && title.includes(')') && !title.includes('T') && !title.includes('EP')) || 
     /\(\d{4}\)/.test(title) // year in parentheses like (2022)
   ) {
     return 'movie';
@@ -59,6 +61,15 @@ export const parseEpisodeTitle = (title: string): {
   let seriesName = title;
   let season = 1;
   let episode = 1;
+  
+  // Try to match T#|EP# pattern (like T6|EP12)
+  const tEpMatch = title.match(/(.+?)\s+T(\d+)\|EP(\d+)/i);
+  if (tEpMatch) {
+    seriesName = tEpMatch[1].trim();
+    season = parseInt(tEpMatch[2], 10);
+    episode = parseInt(tEpMatch[3], 10);
+    return { seriesName, season, episode };
+  }
   
   // Try to match patterns like "Show Name S01E02" or "Show Name T01E02"
   const seasonEpisodeMatch = title.match(/(.+?)(?:[ST](\d+)E(\d+))/i);
