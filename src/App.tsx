@@ -20,6 +20,8 @@ const DuplicatesCheck = lazy(() => import('./pages/DuplicatesCheck'));
 const BulkUpload = lazy(() => import('./pages/BulkUpload'));
 const Promotionals = lazy(() => import('./pages/Promotionals'));
 const PremiumFeatures = lazy(() => import('./pages/PremiumFeatures'));
+const Premium = lazy(() => import('./pages/Premium'));
+const PremiumSuccess = lazy(() => import('./pages/PremiumSuccess'));
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function App() {
               <Route path="/bulk-upload" element={<ProtectedRoute><BulkUpload /></ProtectedRoute>} />
               <Route path="/promotionals" element={<ProtectedRoute><Promotionals /></ProtectedRoute>} />
               <Route path="/premium-features" element={<ProtectedRoute><PremiumFeatures /></ProtectedRoute>} />
+              <Route path="/premium" element={<ProtectedRoute><Premium /></ProtectedRoute>} />
+              <Route path="/premium-success" element={<ProtectedRoute><PremiumSuccess /></ProtectedRoute>} />
               <Route path="/404" element={<NotFound />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>

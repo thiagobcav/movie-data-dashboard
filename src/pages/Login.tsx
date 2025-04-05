@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CreditCard } from 'lucide-react';
 
 const Login = () => {
   const [uuid, setUuid] = useState('');
@@ -55,7 +55,7 @@ const Login = () => {
               />
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-4">
             <Button
               type="submit"
               className="w-full"
@@ -70,6 +70,23 @@ const Login = () => {
                 'Entrar'
               )}
             </Button>
+            
+            <div className="text-center w-full">
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-xs text-muted-foreground gap-1"
+                onClick={() => {
+                  navigate('/login');
+                  setTimeout(() => {
+                    const demoUuid = "6c84fb90-12c4-11e1-840d-7b25c5ee775a";
+                    setUuid(demoUuid);
+                  }, 100);
+                }}
+              >
+                Ver demonstração
+              </Button>
+            </div>
           </CardFooter>
         </form>
       </Card>
