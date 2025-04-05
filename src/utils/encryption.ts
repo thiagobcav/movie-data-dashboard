@@ -13,19 +13,31 @@ const generateKey = () => {
   return `ADMINPANEL_${domain}_${date}`;
 };
 
+// Additional security through code obfuscation
+const encryptChar = (char: string, key: string, pos: number): string => {
+  const charCode = char.charCodeAt(0);
+  const keyChar = key.charCodeAt(pos % key.length);
+  // XOR with key character and add some shift based on position
+  return String.fromCharCode(charCode ^ keyChar ^ (pos % 7));
+};
+
 export function encrypt(text: string): string {
+  if (!text) return '';
+  
   const SECRET_KEY = generateKey();
-  // Simple XOR encryption with a key
+  // Simple XOR encryption with a key and position-based obfuscation
   const result = [];
   for (let i = 0; i < text.length; i++) {
-    const charCode = text.charCodeAt(i) ^ SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
-    result.push(String.fromCharCode(charCode));
+    result.push(encryptChar(text[i], SECRET_KEY, i));
   }
+  
   // Convert to base64 to make it harder to read and safe for storage
   return btoa(result.join(''));
 }
 
 export function decrypt(encrypted: string): string {
+  if (!encrypted) return '';
+  
   try {
     const SECRET_KEY = generateKey();
     // Decode from base64
@@ -33,12 +45,18 @@ export function decrypt(encrypted: string): string {
     // Reverse the XOR operation
     const result = [];
     for (let i = 0; i < encryptedText.length; i++) {
-      const charCode = encryptedText.charCodeAt(i) ^ SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
-      result.push(String.fromCharCode(charCode));
+      result.push(encryptChar(encryptedText[i], SECRET_KEY, i));
     }
     return result.join('');
   } catch (error) {
     console.error('Decryption failed:', error);
     return '';
   }
+}
+
+// Add an additional layer of obfuscation for sensitive keys
+export function obfuscateKey(key: string): string {
+  // Split the key in parts and reverse the order
+  const parts = key.match(/.{1,8}/g) || [];
+  return parts.reverse().join('');
 }

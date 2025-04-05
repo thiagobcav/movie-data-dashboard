@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { CreditCard, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { createPaymentSession } from '@/utils/paymentProxy';
 
 const Premium = () => {
   const { user, verifyAccess } = useAuth();
@@ -19,30 +20,18 @@ const Premium = () => {
     
     setIsLoading(true);
     try {
-      // Use the proxy to handle sensitive information and payment processing
-      const response = await fetch('https://script.google.com/macros/s/AKfycbymxuIli4v1MHzIr-6vhm2IsRZOoGM2QetJqCGwPhqltBxAMXX-Yp5bbK8esK4GlLLs9g/exec', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'createPayment',
-          userData: {
-            email: user.Email || "cliente@email.com",
-            name: user.Nome || "Cliente",
-            id: user.UUID
-          }
-        }),
+      const response = await createPaymentSession({
+        email: user.Email || "cliente@email.com",
+        name: user.Nome || "Cliente",
+        id: user.UUID
       });
       
-      const data = await response.json();
-      
-      if (data.init_point) {
-        // Redirecionar para o checkout do Mercado Pago
-        window.location.href = data.init_point;
+      if (response.init_point) {
+        // Redirect to Mercado Pago checkout
+        window.location.href = response.init_point;
       } else {
         toast.error("Erro ao criar pagamento", {
-          description: "Não foi possível iniciar o checkout. Tente novamente."
+          description: response.error || "Não foi possível iniciar o checkout. Tente novamente."
         });
       }
     } catch (error) {
@@ -163,6 +152,10 @@ const Premium = () => {
                   <AlertCircle className="h-5 w-5 text-muted-foreground mr-2" />
                   <span className="text-muted-foreground">Sem verificação de duplicados</span>
                 </li>
+                <li className="flex items-center">
+                  <AlertCircle className="h-5 w-5 text-muted-foreground mr-2" />
+                  <span className="text-muted-foreground">Sem importação em lote</span>
+                </li>
               </ul>
             </CardContent>
             <CardFooter>
@@ -174,11 +167,14 @@ const Premium = () => {
           
           <Card className="md:col-span-1 border-primary bg-primary/5">
             <CardHeader>
+              <div className="absolute top-4 right-4 bg-amber-500 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                Recomendado
+              </div>
               <CardTitle>Plano Premium</CardTitle>
               <CardDescription>Acesso a todas as funcionalidades</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-3xl font-bold">R$ 49,90 <span className="text-sm font-normal text-muted-foreground">/mês</span></div>
+              <div className="text-3xl font-bold">R$ 15,00 <span className="text-sm font-normal text-muted-foreground">/mês</span></div>
               <ul className="space-y-2">
                 <li className="flex items-center">
                   <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
@@ -200,11 +196,16 @@ const Premium = () => {
                   <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
                   <span>Importação em lote</span>
                 </li>
+                <li className="flex items-center">
+                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                  <span>Suporte prioritário</span>
+                </li>
               </ul>
             </CardContent>
             <CardFooter>
               <Button 
                 className="w-full"
+                variant="premium"
                 onClick={handlePremiumPayment}
                 disabled={isLoading}
               >
@@ -216,12 +217,30 @@ const Premium = () => {
                 ) : (
                   <>
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Assinar com Mercado Pago
+                    Assinar Premium
                   </>
                 )}
               </Button>
             </CardFooter>
           </Card>
+        </div>
+
+        <div className="bg-muted p-6 rounded-lg">
+          <h2 className="text-xl font-semibold mb-4">Perguntas Frequentes</h2>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium">Como funciona a cobrança?</h3>
+              <p className="text-muted-foreground">A assinatura é mensal e o pagamento é processado através do Mercado Pago com total segurança.</p>
+            </div>
+            <div>
+              <h3 className="font-medium">Posso cancelar a qualquer momento?</h3>
+              <p className="text-muted-foreground">Sim, você pode cancelar sua assinatura a qualquer momento diretamente na sua conta do Mercado Pago.</p>
+            </div>
+            <div>
+              <h3 className="font-medium">O que acontece quando cancelo?</h3>
+              <p className="text-muted-foreground">Você continua com acesso aos recursos premium até o final do período pago. Após isso, sua conta volta para o plano básico.</p>
+            </div>
+          </div>
         </div>
       </div>
     </DashboardLayout>

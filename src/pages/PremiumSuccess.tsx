@@ -1,25 +1,74 @@
 
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const PremiumSuccess = () => {
   const { verifyAccess } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isVerifying, setIsVerifying] = useState(true);
+  const [verificationComplete, setVerificationComplete] = useState(false);
 
   useEffect(() => {
-    // Verify access to update premium status
-    verifyAccess().then(success => {
-      if (success) {
-        toast.success('Sua assinatura Premium foi ativada com sucesso!');
+    const verifyPaymentAndAccess = async () => {
+      setIsVerifying(true);
+      try {
+        // Get payment information from query parameters
+        const urlParams = new URLSearchParams(location.search);
+        const paymentId = urlParams.get('payment_id');
+        const paymentStatus = urlParams.get('status');
+        
+        if (paymentId && paymentStatus === 'approved') {
+          // Verify access to update premium status
+          const success = await verifyAccess();
+          
+          if (success) {
+            toast.success('Sua assinatura Premium foi ativada com sucesso!');
+            setVerificationComplete(true);
+          } else {
+            toast.error('Houve um problema ao ativar sua assinatura Premium.');
+            // Navigate to premium page after a delay
+            setTimeout(() => navigate('/premium'), 3000);
+          }
+        } else if (paymentStatus === 'pending') {
+          toast.info('Seu pagamento está pendente de aprovação.');
+          setVerificationComplete(true);
+        } else if (paymentStatus === 'failure') {
+          toast.error('O pagamento falhou. Por favor, tente novamente.');
+          // Navigate to premium page after a delay
+          setTimeout(() => navigate('/premium'), 3000);
+        } else {
+          // Verify access in case the user is returning to this page
+          await verifyAccess();
+          setVerificationComplete(true);
+        }
+      } catch (error) {
+        console.error('Verification error:', error);
+        toast.error('Ocorreu um erro ao verificar seu pagamento.');
+      } finally {
+        setIsVerifying(false);
       }
-    });
-  }, [verifyAccess]);
+    };
+
+    verifyPaymentAndAccess();
+  }, [verifyAccess, navigate, location.search]);
+
+  if (isVerifying) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Verificando seu pagamento...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -50,6 +99,7 @@ const PremiumSuccess = () => {
               <li>Substituição de URLs em episódios</li>
               <li>Verificação de conteúdos duplicados</li>
               <li>Importação em lote</li>
+              <li>Suporte prioritário</li>
             </ul>
           </CardContent>
           <CardFooter>
