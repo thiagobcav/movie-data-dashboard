@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,59 +9,29 @@ import { CreditCard, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-const MERCADO_PAGO_USER_ID = "159047990";
-const MERCADO_PAGO_APP_ID = "1071200859626834";
-
 const Premium = () => {
   const { user, verifyAccess } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [preferenceId, setPreferenceId] = useState<string | null>(null);
   
   const handlePremiumPayment = async () => {
     if (!user) return;
     
     setIsLoading(true);
     try {
-      // Criação da preferência de pagamento usando proxy para evitar CORS
+      // Use the proxy to handle sensitive information and payment processing
       const response = await fetch('https://script.google.com/macros/s/AKfycbymxuIli4v1MHzIr-6vhm2IsRZOoGM2QetJqCGwPhqltBxAMXX-Yp5bbK8esK4GlLLs9g/exec', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          method: 'POST',
-          url: 'https://api.mercadopago.com/checkout/preferences',
-          token: MERCADO_PAGO_USER_ID,
-          body: JSON.stringify({
-            items: [
-              {
-                title: "Assinatura Premium",
-                quantity: 1,
-                currency_id: "BRL",
-                unit_price: 49.90,
-                description: "Acesso a recursos premium por 30 dias"
-              }
-            ],
-            payer: {
-              email: user.Email || "cliente@email.com",
-              name: user.Nome || "Cliente",
-              identification: {
-                type: "CPF",
-                number: ""
-              }
-            },
-            back_urls: {
-              success: window.location.origin + "/premium-success",
-              failure: window.location.origin + "/premium",
-              pending: window.location.origin + "/premium"
-            },
-            auto_return: "approved",
-            external_reference: user.UUID,
-            metadata: {
-              user_id: user.UUID
-            }
-          })
+          action: 'createPayment',
+          userData: {
+            email: user.Email || "cliente@email.com",
+            name: user.Nome || "Cliente",
+            id: user.UUID
+          }
         }),
       });
       
@@ -77,9 +46,9 @@ const Premium = () => {
         });
       }
     } catch (error) {
-      console.error("Erro na integração com Mercado Pago:", error);
+      console.error("Erro na integração com pagamento:", error);
       toast.error("Erro ao processar pagamento", {
-        description: "Ocorreu um problema ao conectar com o Mercado Pago."
+        description: "Ocorreu um problema ao conectar com o gateway de pagamento."
       });
     } finally {
       setIsLoading(false);
