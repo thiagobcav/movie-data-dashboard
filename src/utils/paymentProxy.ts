@@ -1,5 +1,7 @@
 
 import { encrypt } from './encryption';
+import { toast } from 'sonner';
+import logger from './logger';
 
 // Mercado Pago integration constants
 const PROXY_URL = 'https://script.google.com/macros/s/AKfycbymxuIli4v1MHzIr-6vhm2IsRZOoGM2QetJqCGwPhqltBxAMXX-Yp5bbK8esK4GlLLs9g/exec';
@@ -25,6 +27,8 @@ interface UserData {
  */
 export const createPaymentSession = async (userData: UserData): Promise<PaymentResponse> => {
   try {
+    logger.info('Creating payment session for user:', userData.email);
+    
     const response = await fetch(PROXY_URL, {
       method: 'POST',
       headers: {
@@ -43,13 +47,45 @@ export const createPaymentSession = async (userData: UserData): Promise<PaymentR
       }),
     });
     
+    // First check if response was ok (HTTP 200-299)
     if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}`);
+      const errorText = await response.text();
+      logger.error(`Payment API error (${response.status}):`, errorText);
+      
+      // Try to parse the error as JSON if possible
+      try {
+        const errorJson = JSON.parse(errorText);
+        return { error: errorJson.error || errorJson.message || `HTTP error ${response.status}` };
+      } catch (e) {
+        // If not valid JSON, return the raw text
+        return { error: errorText || `HTTP error ${response.status}` };
+      }
     }
     
-    return await response.json();
+    // Check content type to ensure we're getting JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const rawResponse = await response.text();
+      logger.error('Payment API returned non-JSON response:', rawResponse);
+      return { error: 'Resposta inválida do servidor de pagamento' };
+    }
+    
+    // Parse the JSON response
+    const data = await response.json();
+    logger.info('Payment session created successfully:', data.init_point ? 'Init point received' : 'No init point');
+    
+    // Validate the parsed response
+    if (!data || (typeof data !== 'object')) {
+      return { error: 'Formato de resposta inválido' };
+    }
+    
+    return data;
   } catch (error) {
-    console.error('Payment session creation failed:', error);
-    return { error: error instanceof Error ? error.message : 'Unknown error' };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Payment session creation failed:', error);
+    toast.error('Erro ao criar sessão de pagamento', { 
+      description: errorMessage 
+    });
+    return { error: errorMessage };
   }
 };
